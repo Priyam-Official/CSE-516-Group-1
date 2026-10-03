@@ -1,0 +1,90 @@
+{
+  "bn": {
+    "n_nodes": 16,
+    "n_edges": 24,
+    "density": 0.2,
+    "n_parameters": 55,
+    "BIC": -2841.621005735395,
+    "age_cut_points": [
+      59.66666666666666,
+      67.0
+    ],
+    "markov_blanket_of_target": [
+      "ALLERGY",
+      "SWALLOWING_DIFFICULTY"
+    ]
+  },
+  "ci": {
+    "lambda": 0.027557229216515888,
+    "n_edges": 82,
+    "density": 0.6833333333333333,
+    "target_neighbours": [
+      "AGE",
+      "SMOKING",
+      "YELLOW_FINGERS",
+      "ANXIETY",
+      "PEER_PRESSURE",
+      "CHRONIC_DISEASE",
+      "FATIGUE",
+      "ALLERGY",
+      "WHEEZING",
+      "ALCOHOL_CONSUMING",
+      "COUGHING",
+      "SHORTNESS_OF_BREATH",
+      "SWALLOWING_DIFFICULTY",
+      "CHEST_PAIN"
+    ]
+  },
+  "comparison": {
+    "bn_edges": 24,
+    "ci_edges": 82,
+    "shared": 24,
+    "jaccard": 0.2926829268292683,
+    "skeleton_SHD": 58,
+    "stable_edges_freq>=0.8": 8,
+    "stable_edges_freq>=0.5": 22,
+    "mean_freq_of_learned_edges": 0.67875,
+    "sanity_pairs": {
+      "SMOKING--YELLOW_FINGERS": {
+        "in_BN": true,
+        "in_CI": true,
+        "bootstrap_freq": 0.64
+      },
+      "SMOKING--COUGHING": {
+        "in_BN": false,
+        "in_CI": true,
+        "bootstrap_freq": 0.4
+      },
+      "SMOKING--CHRONIC_DISEASE": {
+        "in_BN": true,
+        "in_CI": true,
+        "bootstrap_freq": 0.47
+      },
+      "COUGHING--WHEEZING": {
+        "in_BN": true,
+        "in_CI": true,
+        "bootstrap_freq": 0.98
+      },
+      "COUGHING--SHORTNESS_OF_BREATH": {
+        "in_BN": true,
+        "in_CI": true,
+        "bootstrap_freq": 0.78
+      },
+      "WHEEZING--SHORTNESS_OF_BREATH": {
+        "in_BN": false,
+        "in_CI": true,
+        "bootstrap_freq": 0.04
+      },
+      "ALCOHOL_CONSUMING--LUNG_CANCER": {
+        "in_BN": false,
+        "in_CI": true,
+        "bootstrap_freq": 0.33
+      },
+      "CHEST_PAIN--LUNG_CANCER": {
+        "in_BN": false,
+        "in_CI": true,
+        "bootstrap_freq": 0.18
+      }
+    }
+  }
+}

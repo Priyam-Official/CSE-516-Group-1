@@ -1,0 +1,337 @@
+{
+ "GENDER": {
+  "parents": [],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.4856,
+    0.5144
+   ]
+  ]
+ },
+ "AGE": {
+  "parents": [],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.3333,
+    0.3584,
+    0.3082
+   ]
+  ]
+ },
+ "SMOKING": {
+  "parents": [
+   "CHRONIC_DISEASE"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.3806,
+    0.6194
+   ],
+   [
+    0.5274,
+    0.4726
+   ]
+  ]
+ },
+ "YELLOW_FINGERS": {
+  "parents": [
+   "SMOKING",
+   "ANXIETY",
+   "PEER_PRESSURE"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.5897,
+    0.4103
+   ],
+   [
+    0.5128,
+    0.4872
+   ],
+   [
+    0.24,
+    0.76
+   ],
+   [
+    0.2258,
+    0.7742
+   ],
+   [
+    0.9167,
+    0.0833
+   ],
+   [
+    0.6667,
+    0.3333
+   ],
+   [
+    0.3125,
+    0.6875
+   ],
+   [
+    0.0175,
+    0.9825
+   ]
+  ]
+ },
+ "ANXIETY": {
+  "parents": [
+   "GENDER",
+   "SMOKING"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.5909,
+    0.4091
+   ],
+   [
+    0.2778,
+    0.7222
+   ],
+   [
+    0.5781,
+    0.4219
+   ],
+   [
+    0.5732,
+    0.4268
+   ]
+  ]
+ },
+ "PEER_PRESSURE": {
+  "parents": [
+   "GENDER",
+   "SWALLOWING_DIFFICULTY"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.5571,
+    0.4429
+   ],
+   [
+    0.1618,
+    0.8382
+   ],
+   [
+    0.716,
+    0.284
+   ],
+   [
+    0.4923,
+    0.5077
+   ]
+  ]
+ },
+ "CHRONIC_DISEASE": {
+  "parents": [
+   "GENDER"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.3824,
+    0.6176
+   ],
+   [
+    0.5694,
+    0.4306
+   ]
+  ]
+ },
+ "FATIGUE": {
+  "parents": [
+   "ANXIETY"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.2553,
+    0.7447
+   ],
+   [
+    0.4245,
+    0.5755
+   ]
+  ]
+ },
+ "ALLERGY": {
+  "parents": [
+   "ALCOHOL_CONSUMING"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.6587,
+    0.3413
+   ],
+   [
+    0.2857,
+    0.7143
+   ]
+  ]
+ },
+ "WHEEZING": {
+  "parents": [
+   "SMOKING",
+   "COUGHING"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.4565,
+    0.5435
+   ],
+   [
+    0.3333,
+    0.6667
+   ],
+   [
+    0.7733,
+    0.2267
+   ],
+   [
+    0.2785,
+    0.7215
+   ]
+  ]
+ },
+ "ALCOHOL_CONSUMING": {
+  "parents": [
+   "GENDER",
+   "WHEEZING",
+   "COUGHING"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.8889,
+    0.1111
+   ],
+   [
+    0.5714,
+    0.4286
+   ],
+   [
+    0.0833,
+    0.9167
+   ],
+   [
+    0.8,
+    0.2
+   ],
+   [
+    0.4722,
+    0.5278
+   ],
+   [
+    0.2083,
+    0.7917
+   ],
+   [
+    0.55,
+    0.45
+   ],
+   [
+    0.0714,
+    0.9286
+   ]
+  ]
+ },
+ "COUGHING": {
+  "parents": [
+   "SHORTNESS_OF_BREATH"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.6058,
+    0.3942
+   ],
+   [
+    0.3182,
+    0.6818
+   ]
+  ]
+ },
+ "SHORTNESS_OF_BREATH": {
+  "parents": [
+   "PEER_PRESSURE",
+   "FATIGUE"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.5185,
+    0.4815
+   ],
+   [
+    0.1163,
+    0.8837
+   ],
+   [
+    0.7907,
+    0.2093
+   ],
+   [
+    0.3366,
+    0.6634
+   ]
+  ]
+ },
+ "SWALLOWING_DIFFICULTY": {
+  "parents": [
+   "ANXIETY"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.766,
+    0.234
+   ],
+   [
+    0.295,
+    0.705
+   ]
+  ]
+ },
+ "CHEST_PAIN": {
+  "parents": [
+   "GENDER",
+   "ALLERGY"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.726,
+    0.274
+   ],
+   [
+    0.5077,
+    0.4923
+   ],
+   [
+    0.375,
+    0.625
+   ],
+   [
+    0.2111,
+    0.7889
+   ]
+  ]
+ },
+ "LUNG_CANCER": {
+  "parents": [
+   "ALLERGY",
+   "SWALLOWING_DIFFICULTY"
+  ],
+  "cpt_rows_parent_config_cols_state": [
+   [
+    0.4394,
+    0.5606
+   ],
+   [
+    0.0952,
+    0.9048
+   ],
+   [
+    0.0706,
+    0.9294
+   ],
+   [
+    0.0143,
+    0.9857
+   ]
+  ]
+ }
+}
