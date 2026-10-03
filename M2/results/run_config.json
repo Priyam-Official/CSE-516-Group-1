@@ -1,0 +1,31 @@
+{
+  "python": "3.12.4",
+  "numpy": "2.4.4",
+  "pandas": "3.0.1",
+  "networkx": "3.4.2",
+  "params": {
+    "seed": 42,
+    "folds": 5,
+    "repeats": 5,
+    "pe_repeats": 3,
+    "se_repeats": 3,
+    "max_indegree": 3,
+    "alpha": 1.0,
+    "demo_exo": true
+  },
+  "bootstrap_B": 100,
+  "ve_vs_enumeration_max_abs_err": 1.1102230246251565e-16,
+  "command": {
+    "data": "https://www.kaggle.com/api/v1/datasets/download/nancyalaswad90/lung-cancer",
+    "out": "results",
+    "seed": 42,
+    "folds": 5,
+    "repeats": 5,
+    "bootstrap": 100,
+    "max_indegree": 3,
+    "alpha": 1.0,
+    "glasso_alpha": null,
+    "no_demo_exogenous": false,
+    "quick": false
+  }
+}
