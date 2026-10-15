@@ -1,18 +1,4 @@
-"""Merged pipeline: PC-learned Bayesian Network + LR / MLP / SVM baselines (from script 2)
-with the graph drawing, graphical-lasso CI graph and fast variable-elimination inference
-(from script 1).
-
-Leakage-aware: age cut-points, PC structure, CPTs and all classifier preprocessing are
-learned on the training fold only.
-
-SMOKING is merged into the graph through a small set of clinically motivated, protected
-edges (SMOKING-WHEEZING, SMOKING-COUGHING, SMOKING-YELLOW_FINGERS, SMOKING-CHRONIC_DISEASE).
-In small samples the G-test can drop these edges because their p-values sit just above
-alpha; protecting them keeps the well-established respiratory/smoking dependencies in the
-learned structure while leaving every other edge to the data.
-"""
 from __future__ import annotations
-
 import argparse
 import io
 import itertools
