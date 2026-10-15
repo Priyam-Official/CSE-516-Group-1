@@ -1,0 +1,36 @@
+{
+  "python": "3.12.4",
+  "numpy": "2.4.4",
+  "pandas": "3.0.1",
+  "networkx": "3.4.2",
+  "ve_vs_enumeration_max_abs_err": 1.1102230246251565e-16,
+  "protected_smoking_edges": [
+    [
+      "SMOKING",
+      "YELLOW_FINGERS"
+    ],
+    [
+      "CHRONIC_DISEASE",
+      "SMOKING"
+    ],
+    [
+      "SMOKING",
+      "WHEEZING"
+    ],
+    [
+      "COUGHING",
+      "SMOKING"
+    ]
+  ],
+  "command": {
+    "data": "data/survey lung cancer.csv",
+    "out": "results",
+    "alpha": 0.05,
+    "max_cond": 3,
+    "folds": 5,
+    "bootstrap": 0,
+    "glasso_alpha": null,
+    "skip_classifiers": false,
+    "no_protect_smoking": false
+  }
+}

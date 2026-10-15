@@ -1,0 +1,89 @@
+{
+  "raw_rows": 309,
+  "duplicate_rows": 33,
+  "columns": [
+    "GENDER",
+    "AGE",
+    "SMOKING",
+    "YELLOW_FINGERS",
+    "ANXIETY",
+    "PEER_PRESSURE",
+    "CHRONIC_DISEASE",
+    "FATIGUE",
+    "ALLERGY",
+    "WHEEZING",
+    "ALCOHOL_CONSUMING",
+    "COUGHING",
+    "SHORTNESS_OF_BREATH",
+    "SWALLOWING_DIFFICULTY",
+    "CHEST_PAIN",
+    "LUNG_CANCER"
+  ],
+  "class_counts": {
+    "1": 270,
+    "0": 39
+  },
+  "age_min": 21,
+  "age_max": 87,
+  "rows_after_dedup": 276,
+  "positive_rate": 0.8623188405797102,
+  "majority_class_accuracy": 0.8623188405797102,
+  "age_cut_points_full_data_descriptive_only": [
+    59.66666666666666,
+    67.0
+  ],
+  "pc_alpha": 0.05,
+  "pc_max_conditioning_set": 3,
+  "ci_tests": 852,
+  "skeleton_edges": 22,
+  "skeleton_density": 0.18333333333333332,
+  "cpdag_directed_edges": 22,
+  "cpdag_undirected_edges": 0,
+  "dag_edges": 22,
+  "dag_acyclic": true,
+  "markov_blanket_of_target": [
+    "ALLERGY",
+    "ANXIETY",
+    "PEER_PRESSURE",
+    "SHORTNESS_OF_BREATH",
+    "SWALLOWING_DIFFICULTY"
+  ],
+  "smoking_edge_protection_enabled": true,
+  "smoking_protected_edges": [
+    [
+      "SMOKING",
+      "YELLOW_FINGERS"
+    ],
+    [
+      "CHRONIC_DISEASE",
+      "SMOKING"
+    ],
+    [
+      "SMOKING",
+      "WHEEZING"
+    ],
+    [
+      "COUGHING",
+      "SMOKING"
+    ]
+  ],
+  "smoking_edges_retained": [
+    [
+      "CHRONIC_DISEASE",
+      "SMOKING"
+    ],
+    [
+      "COUGHING",
+      "SMOKING"
+    ],
+    [
+      "SMOKING",
+      "WHEEZING"
+    ],
+    [
+      "SMOKING",
+      "YELLOW_FINGERS"
+    ]
+  ],
+  "dag_extension_policy": "PC-compelled orientations kept; remaining CPDAG edges oriented deterministically. Extension-only directions are not identified by PC and must not be read causally."
+}
