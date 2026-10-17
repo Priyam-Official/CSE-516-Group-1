@@ -1,0 +1,299 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{mathptmx}
+\usepackage[scaled=0.9]{helvet}
+\usepackage[top=0.75in, bottom=0.9in, left=0.625in, right=0.625in, columnsep=0.25in]{geometry}
+\usepackage{microtype,graphicx,booktabs,titlesec,caption,enumitem,array,amsmath,stfloats,url}
+\usepackage[hidelinks]{hyperref}
+\urlstyle{same}
+\setlength{\parindent}{1em}\setlength{\parskip}{0pt}
+\renewcommand{\thesection}{\Roman{section}}
+\renewcommand{\thetable}{\Roman{table}}
+\titleformat{\section}{\centering\footnotesize\scshape}{\thesection.}{0.6em}{\MakeUppercase}
+\titleformat{\subsection}{\itshape\normalsize}{\thesubsection.}{0.5em}{}
+\renewcommand{\thesubsection}{\Alph{subsection}}
+\titlespacing*{\section}{0pt}{1.1ex plus .3ex}{0.9ex}
+\titlespacing*{\subsection}{0pt}{0.9ex plus .2ex}{0.5ex}
+\captionsetup[table]{labelformat=simple,labelsep=newline,font=footnotesize,textfont=sc,justification=centering,skip=4pt}
+\captionsetup[figure]{name=Fig.,labelsep=period,font=footnotesize,justification=justified,singlelinecheck=false,skip=3pt}
+\setlist{nosep,leftmargin=1.3em,itemsep=1pt}
+\newcommand{\vn}[1]{{\small\texttt{#1}}}
+\renewcommand{\arraystretch}{1.08}
+\pagestyle{plain}
+
+\begin{document}
+	\twocolumn[{%
+		\begin{center}
+			{\fontsize{20}{24}\selectfont Interpretable Risk-Factor Dependency Modeling for Lung Cancer Prediction Using Probabilistic Graphical Models\par}
+			\vspace{8pt}
+			\begin{minipage}[t]{0.32\textwidth}\centering
+				\large Priyam Modi\\
+				\normalsize Group 1, CSE 516 -- Applied AI\\
+				School of Engineering and Applied Sciences\\
+				Ahmedabad University
+			\end{minipage}\hfill
+			\begin{minipage}[t]{0.32\textwidth}\centering
+				\large Rushin Modi\\
+				\normalsize Group 1, CSE 516 -- Applied AI\\
+				School of Engineering and Applied Sciences\\
+				Ahmedabad University
+			\end{minipage}\hfill
+			\begin{minipage}[t]{0.32\textwidth}\centering
+				\large Jash Odedara\\
+				\normalsize Group 1, CSE 516 -- Applied AI\\
+				School of Engineering and Applied Sciences\\
+				Ahmedabad University
+			\end{minipage}
+		\end{center}\vspace{6pt}}]
+
+	\noindent{\small\bfseries\textit{Abstract}---This report describes an experimental pipeline for learning conditional-dependency structure in a small lung-cancer survey dataset and evaluating probabilistic inference alongside conventional classifiers. The structural-learning method is the PC algorithm: it begins with a complete undirected graph, removes edges using conditional-independence tests while storing separating sets, and then orients only those edges justified by collider and propagation rules. The resulting partially directed acyclic graph (CPDAG) is kept distinct from any directed acyclic graph (DAG) extension used for Bayesian-network parameterization and inference. Logistic regression, a small neural network (MLP), and an RBF-kernel support-vector machine (SVM) provide discriminative baselines against the PC-learned Bayesian network. Classification is reported with AUROC, AUPRC, minority-class F1, and Brier score. Bayesian-network inference supports posterior queries from partial evidence, offering an explicit explanation path unavailable from a standard discriminative prediction alone. The dataset is small and observational; therefore, learned edges are treated as statistical dependencies rather than causal findings. In preliminary cross-validated results, logistic regression (AUROC 0.956) and the SVM (0.938) rank best, the PC-learned Bayesian network is intermediate (0.812, with AUPRC 0.966 but minority-class F1 of only 0.069), and the MLP is weakest (0.672). Reported metrics are preliminary, and structural sensitivity, orientation validation, and held-out Bayesian-network evaluation are identified as required validation steps.}\par\vspace{3pt}
+
+	\noindent{\small\bfseries\textit{Index Terms}---\textit{Probabilistic graphical models, PC algorithm, Bayesian networks, conditional independence, lung cancer prediction, support-vector machine, neural network, explainable AI.}}\par\vspace{4pt}
+
+	\section{Introduction}
+	Clinical and survey variables may be statistically related: symptoms can co-occur, behavioral factors can be associated, and several observations can jointly change the probability assigned to a target. A classifier can predict a label without representing these dependencies explicitly. A probabilistic graphical model (PGM) represents variables and their factorization in a graph, and can answer probability queries when only some variables are observed.
+
+	This project studies the Lung Cancer Survey Dataset distributed through Kaggle~\cite{b2}, which is also the dataset used in the lung-cancer appendix of the Neural Graphical Models paper~\cite{b1}. The dataset has 309 rows and 16 columns: demographic and symptom/behavior variables, including \vn{AGE}, and the binary target \vn{LUNG\_CANCER}. A preliminary data audit found 33 exact duplicate rows, no missing cells, and 270 positive versus 39 negative target labels before deduplication. Duplicate removal yields 276 unique rows (238 YES, 38 NO). This strong class imbalance and small sample size materially constrain interpretation.
+
+	The objectives are:
+	\begin{enumerate}
+		\item Learn a conditional-independence skeleton using the PC algorithm and orient only edges justified by PC orientation rules.
+		\item Learn a Bayesian Network (BN) parameterization for probabilistic queries.
+		\item Compare BN predictions with logistic regression, a small neural network, and an RBF-kernel SVM using identical stratified evaluation folds.
+		\item Report classification performance using metrics sensitive to class imbalance and probability quality.
+		\item Demonstrate explainability through partial-evidence posterior inference and graph-based dependency inspection.
+	\end{enumerate}
+
+	\section{Problem Formulation}
+	Let \(V = \{X_{1},\ldots ,X_{15},Y\}\) be the set of observed variables, where \(Y\) is \vn{LUNG\_CANCER}. The target takes values in \(\{0,1\}\). The survey features are mostly binary; \vn{AGE} is continuous in the raw data and is discretized into three bins for categorical graphical-model learning. The age cut points must be fitted on the training partition only in predictive evaluation.
+
+	A Bayesian Network is a DAG \(G = (V,E)\) with joint distribution
+	\begin{equation}
+		P(V) = \prod_{i = 1}^{|V|}P(X_i\mid \mathrm{Pa}(X_i)),
+	\end{equation}
+	where \(\mathrm{Pa}(X_i)\) denotes the parents of node \(X_{i}\). For evidence \(e\) and target value \(y\) inference returns
+	\begin{equation}
+		P(Y = y\mid e) = \frac{P(Y = y,e)}{\sum_{y'}P(Y = y',e)}.
+	\end{equation}
+	The project is observational. An edge in the learned graph does not, by itself, establish a causal effect.
+
+	\section{Dataset and Preprocessing}
+	The principal dataset is the Kaggle Lung Cancer Survey Dataset~\cite{b2}. The initial file has 309 records and 16 columns. The target distribution before deduplication is 270 YES and 39 NO; 33 exact duplicate rows were detected (Table~\ref{tab:audit}). Exact duplicates are removed before cross-validation to prevent identical rows appearing in both training and test partitions. The resulting dataset has 276 records (238 YES, 38 NO), so deduplication removed 32 YES rows and one NO row. \vn{AGE} ranges from 21 to 87 (mean 62.7, median 62). The NGM paper~\cite{b1} describes the same Kaggle file as containing 284 patients with \vn{AGE} binarized; the 309-row version used here differs in row count, so numbers are not directly comparable.
+
+	\begin{table}[h]\centering
+		\caption{Dataset audit before model fitting}\footnotesize
+		\begin{tabular}{@{}p{0.48\columnwidth}p{0.44\columnwidth}@{}}
+			\toprule
+			Item & Value\\
+			\midrule
+			Raw rows & 309\\
+			Columns & 16\\
+			Exact duplicate rows removed & 33\\
+			Rows after deduplication & 276\\
+			Missing cells reported & 0\\
+			Raw target YES & 270\\
+			Raw target NO & 39\\
+			Target YES / NO after deduplication & 238 / 38\\
+			\bottomrule
+		\end{tabular}
+		\label{tab:audit}
+	\end{table}
+
+	Column names are normalized. \vn{GENDER} is encoded as a binary variable; symptom/behavior codes are mapped consistently from the dataset's 1/2 convention to 0/1; the target is mapped to 0/1. The pipeline should fail loudly if unexpected values or missing cells appear. For predictive cross-validation, all learned transformations---including age-bin cut points, scaling, and probability calibration---must be fitted on training folds only.
+
+	\section{Background: PC Algorithm}
+	The PC algorithm learns a graph from conditional-independence (CI) tests rather than optimizing a graph score \cite{b3,b4}. Its two phases are skeleton discovery and orientation.
+
+	\subsection{Skeleton discovery}
+	The algorithm initializes a complete undirected graph. At conditioning-set size \(\ell = 0\) it tests marginal independence for every adjacent pair. It then increases \(\ell\) and tests adjacent pairs conditioned on subsets of the current neighbors of one endpoint. If a test fails to reject conditional independence at significance level \(\alpha\), the edge is removed and the conditioning set that produced the removal is stored as the separating set \(\mathrm{Sep}(X,Y)\).
+
+	\subsection{Orientation}
+	For an unshielded triple \(X - Z - Y\) where \(X\) and \(Y\) are not adjacent, if \(Z\notin \mathrm{Sep}(X,Y)\) PC orients the triple as a collider: \(X\rightarrow Z\gets Y\). Meek orientation rules are then applied repeatedly to orient additional edges without introducing unsupported colliders or directed cycles. The standard output is a CPDAG, representing a Markov-equivalence class. Undirected edges are meaningful: the available observational evidence may not identify their directions. A DAG extension, if needed for BN inference, must be documented separately and checked for acyclicity.
+
+	\subsection{CI tests and finite-sample concerns}
+	For categorical variables, a common CI test is a conditional Pearson chi-square test. Sparse contingency tables can invalidate the usual asymptotic approximation and reduce test power. The small dataset and high-dimensional conditioning sets make this concern important. The significance level \(\alpha\), maximum conditioning-set size, test count, and separating sets must be saved as experiment outputs. Sensitivity analysis across multiple \(\alpha\) values is required before making strong structural claims.
+
+	\section{Learning Pipeline}
+	\subsection{PC structural learning}
+	The implementation should:
+	\begin{enumerate}
+		\item Start from a complete undirected graph over all variables.
+		\item Test candidate pairs in increasing conditioning-set size.
+		\item Remove an edge only after a CI test supports conditional independence at the configured threshold.
+		\item Store the exact separating set associated with every removed edge.
+		\item Orient unshielded colliders using the stored separating sets.
+		\item Apply Meek orientation rules to a fixed point, preventing directed cycles.
+		\item Export the skeleton, separating-set table, CPDAG, orientation log, and any DAG extension as separate artifacts.
+	\end{enumerate}
+
+	A visual graph alone is not sufficient evidence of correctness. Implementation checks should include symmetry of the skeleton, no self-edges, correct use of separating sets, and acyclicity of any fully directed extension.
+
+	\subsection{Learned structure and the SMOKING node}
+	Fig.~\ref{fig:target} shows the undirected PC conditional-independence skeleton, and Fig.~\ref{fig:bn} shows the DAG extension used for Bayesian-network parameterization and inference. In both, the target \vn{LUNG\_CANCER} is red and its Markov blanket / direct neighbours---\vn{ALLERGY}, \vn{ANXIETY}, \vn{PEER\_PRESSURE}, \vn{SWALLOWING\_DIFFICULTY} and \vn{SHORTNESS\_OF\_BREATH}---are yellow. In the DAG, \vn{ALLERGY} points into the target and the target points into \vn{SWALLOWING\_DIFFICULTY}. \vn{AGE} has no edges and is isolated in both graphs. Edges indicate statistical dependencies retained by the learning procedure, not causal directions.
+
+	\begin{figure}[h]\centering
+		\includegraphics[width=\columnwidth]{fig_pc_skeleton.png}
+		\caption{PC conditional-independence skeleton (undirected). \vn{LUNG\_CANCER} is red; yellow nodes are its Markov blanket / direct neighbours. Thick red edges are the four \vn{SMOKING} edges added by the clinical merge, not discovered by PC.}
+		\label{fig:target}
+	\end{figure}
+
+	\textbf{SMOKING merge.} In the PC run itself, every edge incident to \vn{SMOKING} was removed during skeleton discovery. Because this contradicts clinical expectation, \vn{SMOKING} was ``protected'' in the plotted graphs: four edges, to \vn{WHEEZING}, \vn{YELLOW\_FINGERS}, \vn{CHRONIC\_DISEASE} and \vn{COUGHING}, were added back by a clinical merge (thick red edges in Figs.~\ref{fig:target} and~\ref{fig:bn}). These four edges are therefore a modeling choice, not a PC finding, and in the DAG extension all four are drawn pointing into \vn{SMOKING}, an orientation that reflects the extension procedure rather than a causal claim. The recorded CI log (Table~\ref{tab:smoking}) lists removal decisions involving \vn{SMOKING}. Under the configured level \(\alpha = 0.05\), each reported \(p\)-value exceeds the threshold, so the removals are consistent with the decision rule; the first three are close to the threshold and may be sensitive to sampling variation or test configuration.
+
+	\begin{table}[h]\centering
+		\caption{Recorded PC decisions involving \vn{SMOKING}}\footnotesize
+		\begin{tabular}{@{}llr@{}}
+			\toprule
+			Pair & Conditioning set & \(p\)-value\\
+			\midrule
+			\vn{SMOKING-ANXIETY} & \vn{COUGHING} & 0.06196\\
+			\vn{SMOKING-CHRONIC\_DISEASE} & \vn{GENDER} & 0.05313\\
+			\vn{SMOKING-WHEEZING} & \vn{FATIGUE} & 0.05288\\
+			\vn{SMOKING-COUGHING} & \vn{ANXIETY} & 0.11486\\
+			\bottomrule
+		\end{tabular}
+		\label{tab:smoking}
+	\end{table}
+
+	The removal of the \vn{SMOKING} edges must not be interpreted as evidence that smoking has no statistical or medical relationship with lung cancer. The PC algorithm's decisions depend on the sample, the CI test, the significance level, the conditioning-set search, variable encoding, and assumptions such as faithfulness. In a small dataset, sparse contingency tables can also make asymptotic chi-square \(p\)-values unreliable. Sensitivity analysis---repeating skeleton learning at \(\alpha \in \{0.01, 0.05, 0.10\}\), inspecting expected cell counts, and comparing edge stability across resampled datasets---is the appropriate next step; until then the \vn{SMOKING} result is a preliminary, configuration-dependent finding.
+
+	\subsection{PC-learned Bayesian network}
+	Fig.~\ref{fig:bn} shows the Bayesian network over all 16 variables obtained by extending the PC output to a DAG, with the \vn{SMOKING} merge applied. This is the structure underlying the ``PC-learned Bayesian Network'' classifier in Section~\ref{sec:results}. The skeleton and the DAG extension are shown separately so that unresolved CPDAG orientations are not mistaken for learned causal directions.
+
+	\begin{figure}[h]\centering
+		\includegraphics[width=\columnwidth]{fig_bn_graph.png}
+		\caption{PC-learned Bayesian network (DAG extension, \vn{SMOKING} merged). \vn{LUNG\_CANCER} is red, its Markov blanket / direct neighbours yellow. Arrows are the DAG orientation and are not causal directions.}
+		\label{fig:bn}
+	\end{figure}
+
+	\subsection{Bayesian-network parameters}
+	Given a DAG extension, the categorical conditional probability tables can be estimated with Dirichlet smoothing. For a node with \(r_i\) states, parent configuration \(j\) and state count \(N_{ijk}\), the posterior-mean estimate is
+	\begin{equation}
+		\hat{\theta}_{ijk} = \frac{N_{ijk} + \alpha_0}{N_{ij} + r_i\alpha_0},
+	\end{equation}
+	where \(\alpha_0 > 0\) is the per-state smoothing parameter. Smoothing avoids zero probabilities for unseen configurations. The parent-set size should be controlled because the sample size is small.
+
+	\subsection{Inference}
+	For evidence \(e\), exact variable elimination computes the target posterior by multiplying local factors, summing out non-query, non-evidence variables, and normalizing the remaining factor. The implementation should be tested against brute-force enumeration on small configurations, with a numerical tolerance documented in the test output. Queries should include:
+	\begin{itemize}
+		\item \(P(\text{\vn{LUNG\_CANCER}} = \text{YES} \mid e)\) for multiple partial-evidence sets;
+		\item posterior changes when a single evidence variable is added or removed;
+		\item the target's Markov blanket and its relation to the local factorization;
+		\item inference runtime as the number of observed variables changes.
+	\end{itemize}
+
+	Any numerical posterior in the final results section must be copied from an executed inference output, together with its evidence configuration. It must not be estimated manually or presented as a clinical risk estimate.
+
+	\section{Motivation for Neural Graphical Models}
+	A conventional BN represents conditional dependencies explicitly and supports probabilistic inference, but discrete conditional probability tables can become large and data-hungry when parent configurations proliferate. A conventional neural network can capture nonlinear predictive patterns but does not inherently provide a graphical factorization or general-purpose inference over missing variables.
+
+	Neural Graphical Models (NGMs) seek to combine graph-structured inductive bias with neural parameterizations, enabling flexible nonlinear local models while retaining structure-aware learning and inference~\cite{b1}. This is a motivation for the broader research direction, not a claim that the present implementation reproduces the full NGM method. The current comparative models are a PC-learned BN, logistic regression, a neural-network classifier, and an SVM. Unless a graph-constrained NGM architecture is implemented and evaluated, NGM results from the literature must be reported only as an external reference and not as results generated by this project.
+
+	\section{Classification Baselines}
+	\subsection{Neural network}
+	Use a compact multilayer perceptron with regularization and early stopping or a fixed training protocol. Given the small dataset, avoid a large architecture. Scaling and all preprocessing must be fitted within each training fold. Random seeds and architecture settings must be recorded.
+
+	\subsection{Support-vector machine}
+	Use an RBF-kernel SVM. Scaling is mandatory and must be fitted inside each training fold. If probability estimates are enabled, probability calibration must be performed without using the held-out fold. Report the exact hyperparameters and calibration method.
+
+	\subsection{Bayesian Network classifier}
+	For each held-out case, compute \(P(Y = 1 \mid X_{\text{observed}})\) using a BN whose structure and parameters were learned without the held-out case. If a single DAG extension is used, state how unresolved CPDAG edges were extended. A BN fitted to the full dataset may be used for illustrative inference examples, but those examples must not be presented as held-out predictive performance.
+
+	\section{Evaluation Protocol and KPIs}
+	Use stratified cross-validation with identical fold assignments for all predictive models. With only 39 negative cases before deduplication, the number of folds must be chosen so each test fold contains enough minority-class observations; report fold-level metrics and mean \(\pm\) standard deviation. Any tuning must occur within training data, preferably through nested cross-validation if hyperparameters are selected. The four primary classification metrics are:
+	\begin{enumerate}
+		\item AUROC: threshold-independent ranking quality.
+		\item AUPRC (average precision): positive-class retrieval quality under class imbalance.
+		\item F1 for the NO class: minority-class detection, with the positive label explicitly set to NO for this metric.
+		\item Brier score: mean squared error of predicted probabilities; lower is better.
+	\end{enumerate}
+
+	Confusion matrices and calibration plots are supporting diagnostics, not substitutes for the four primary metrics. For structure learning, report node/edge counts, graph density, number of directed/undirected edges, number of CI tests, maximum conditioning-set size reached, and sensitivity of edge inclusion to \(\alpha\). For inference, report numerical validation error and query latency.
+
+	\section{Preliminary Results and Interpretation}\label{sec:results}
+	\subsection{Classifier comparison}
+	The preliminary comparison is given in Table~\ref{tab:class} and Fig.~\ref{fig:auroc}, as mean scores across identical stratified folds. The values were transcribed from the saved comparison chart (Fig.~\ref{fig:auroc}) and are accurate to about \(\pm 0.005\); they are not final estimates until the exact protocol, fold-level scores, preprocessing and random seeds are archived and independently rerun.
+
+	\begin{table}[h]\centering
+		\caption{Preliminary classification metrics, mean over identical stratified folds (not final validated estimates)}\footnotesize
+		\begin{tabular}{@{}lcccc@{}}
+			\toprule
+			Model & AUROC & AUPRC & F1 (NO) & Brier\\
+			\midrule
+			Logistic Regression & 0.956 & 0.993 & 0.645 & 0.083\\
+			Neural Network (MLP) & 0.672 & 0.923 & 0.137 & 0.173\\
+			PC-learned BN & 0.812 & 0.966 & 0.069 & 0.102\\
+			SVM (RBF) & 0.938 & 0.990 & 0.504 & 0.075\\
+			\bottomrule
+		\end{tabular}
+		\label{tab:class}
+	\end{table}
+
+	\begin{figure*}[t]\centering
+		\includegraphics[width=0.9\textwidth]{classifier_metrics.png}
+		\caption{Classifier KPIs (AUPRC, AUROC, Brier score, F1 for the NO class), mean across identical stratified folds. Higher is better except for Brier score. Values are preliminary.}
+		\label{fig:auroc}
+	\end{figure*}
+
+	Logistic regression and the RBF-SVM lead on ranking quality (AUROC 0.956 and 0.938), and the SVM has the lowest Brier score (0.075). The PC-learned BN is intermediate on AUROC (0.812) and keeps a high AUPRC (0.966), but its minority-class F1 is the lowest of all models (0.069), meaning it rarely identifies the NO class correctly at the default threshold. The MLP is weakest on AUROC (0.672) and Brier score (0.173) and also has poor minority-class F1 (0.137). High AUPRC for every model largely reflects the 238:38 class ratio, since the positive class dominates; AUROC and F1 for NO are more informative here. The BN's gap to logistic regression is consistent with a sparse PC structure discarding predictive information (for example, \vn{SMOKING} loses all PC edges), but this explanation has not been tested.
+
+	\subsection{SMOKING node}
+	Each recorded \(p\)-value in Table~\ref{tab:smoking} exceeds \(\alpha = 0.05\) so the decisions are internally consistent with that threshold, but three are close to it; this is not robust evidence that smoking is independent of every variable. The graphs in Figs.~\ref{fig:target} and~\ref{fig:bn} contain four \vn{SMOKING} edges only because of the clinical merge. A sensitivity analysis at multiple thresholds and review of the CI-test implementation are required before interpreting the removed \vn{SMOKING} edges substantively.
+
+	\subsection{Caveats}
+	These results describe the behavior of one run, not a definitive scientific conclusion. The dataset is self-reported, small, imbalanced, and not a clinical cohort suitable for establishing causal risk. The variables are not necessarily temporally ordered, and symptoms may be consequences or correlates of disease rather than pre-diagnostic predictors. Leakage and dataset-construction artifacts are additional concerns.
+
+	\section{Explainability Advantages of Bayesian-Network Inference}
+	A discriminative model typically maps a fixed feature vector to a class score. A BN instead represents a joint distribution and can answer conditional queries for different evidence subsets. The posterior \(P(Y \mid e)\) explicitly identifies what evidence was provided and which variables were marginalized out. The graph and the target's Markov blanket (Figs.~\ref{fig:target} and~\ref{fig:bn}) help communicate local dependency structure.
+
+	For a useful report example, present the query, the evidence values, the computed posterior for both target states, the predicted class at a stated threshold, and a comparison with a changed evidence set. This is a model-based explanation of the model's probability calculation, not a causal explanation of disease. The dataset's limited size and possible selection bias mean the posterior must not be presented as medically validated individual risk.
+
+	\section{Motivation and Position Relative to SOTA}
+	The Neural Graphical Models paper by Shrivastava and Chajewska is the selected research anchor~\cite{b1}. Given data \(X\) and a dependency graph \(G\) (directed, undirected or mixed; expert-supplied or recovered by an algorithm such as uGLAD), an NGM fits a multilayer perceptron as a multi-task regression, so that each feature is a function of its neighbors (its Markov blanket for a DAG). Graph adherence is enforced through the path-norm product of the absolute weight matrices, giving the objective
+	\begin{equation}
+		\min_{\mathcal{W},\mathcal{B}}\sum_{k=1}^{M}\bigl\|X^{k}-f_{\mathcal{W},\mathcal{B}}(X^{k})\bigr\|_2^2+\lambda\log\Bigl\|\bigl(\textstyle\prod_{i=1}^{L}|W_i|\bigr)\ast S^{c}\Bigr\|_1,
+	\end{equation}
+	where \(S^{c}\) is the complement of the graph adjacency matrix and \(\ast\) is the Hadamard product~\cite{b1}. Inference uses message passing or gradient-based MAP updates of the unknown inputs, and sampling proceeds feature by feature along a BFS or topological order.
+
+	The paper's lung-cancer appendix uses the same Kaggle survey: a uGLAD conditional-independence graph, a 2-layer NGM with hidden size \(H = 30\) and \(\tanh\) activation, and 5-fold cross-validation (Table~\ref{tab:ext}). The scores are external results taken from the paper, whose table does not state the metric; they are not produced by this project.
+
+	\begin{table}[h]\centering
+		\caption{External reference: 5-fold CV results reported in \cite{b1} for the lung-cancer data (metric not stated)}\footnotesize
+		\begin{tabular}{@{}lcc@{}}
+			\toprule
+			Method & Lung cancer & Smoking\\
+			\midrule
+			Logistic regression & \(0.95 \pm 0.02\) & \(0.71 \pm 0.01\)\\
+			NGM & \(0.96 \pm 0.01\) & \(0.79 \pm 0.02\)\\
+			\bottomrule
+		\end{tabular}
+		\label{tab:ext}
+	\end{table}
+
+	The paper's NGM improves on logistic regression for predicting \vn{SMOKING} (0.79 versus 0.71), the node whose edges PC removed here, which suggests that nonlinear local models may recover dependencies a sparse discrete BN misses. Our logistic regression on \vn{LUNG\_CANCER} (AUROC 0.956) is numerically close to the paper's 0.95, but because the metric, row count (284 versus 309) and \vn{AGE} handling differ, we draw no direct comparison. The current project does not implement an NGM; training a graph-constrained NGM on the PC graph of Fig.~\ref{fig:bn} is the natural next experiment.
+
+	\section{Limitations and Required Validation}
+	\begin{itemize}
+		\item \textbf{Small sample size:} 276 unique rows are insufficient for stable high-dimensional structure discovery without strong assumptions.
+		\item \textbf{Class imbalance:} the negative class is small; AUROC must be read alongside AUPRC, minority-class F1, and Brier score.
+		\item \textbf{CI-test validity:} asymptotic chi-square tests may be unreliable for sparse conditional tables. Alternative tests or careful category/conditioning limits should be investigated.
+		\item \textbf{Structural sensitivity:} edge stability must be evaluated over significance levels and bootstrap/subsample runs.
+		\item \textbf{CPDAG versus DAG:} unresolved orientations must remain unresolved in the CPDAG; any DAG extension is an additional modeling choice.
+		\item \textbf{Predictive evaluation:} BN predictions must be computed on held-out folds using fold-specific structure and parameter learning before claiming a cross-validated BN score.
+		\item \textbf{Causality:} observational associations and learned directions do not establish causal effects without additional assumptions and evidence.
+		\item \textbf{External validity:} the survey dataset is not a representative clinical cohort; predictions are not suitable for medical diagnosis or screening decisions.
+	\end{itemize}
+
+	\section{Conclusion}
+	This project combines PC-based conditional-independence structure learning, Bayesian-network probabilistic inference, and predictive baselines based on a neural network and an RBF SVM. The principal methodological requirement is to preserve the distinction between the PC skeleton, the oriented CPDAG, and any DAG extension used for inference. Classification should be evaluated with metrics that account for class imbalance and probability quality; on that basis, logistic regression and the SVM outperformed the PC-learned BN and the MLP in the current preliminary run. Bayesian-network inference provides a meaningful explainability advantage by supporting transparent posterior queries under partial evidence, but it does not establish causal relationships. The present numbers are preliminary; final conclusions require reproducible cross-validation, structural sensitivity analysis, validation of PC orientation rules, and held-out BN inference evaluation.
+
+	\section*{Reproducibility Checklist}
+	Before submission, archive the exact source revision, dependency versions, random seeds, dataset checksum, PC significance level, CI-test choice, conditioning-set limit, all separating sets, CPDAG and DAG outputs, cross-validation fold assignments, fold-level predictions, and scripts that generate each table and figure.
+
+	\begin{thebibliography}{1}\footnotesize\setlength{\itemsep}{1pt}
+		\bibitem{b1} H. Shrivastava and U. Chajewska, ``Neural Graphical Models,'' arXiv:2210.00453, 2022.
+		\bibitem{b2} N. Alaswad, ``Lung Cancer Dataset,'' Kaggle. [Online]. Available: \url{https://www.kaggle.com/datasets/nancyalaswad90/lung-cancer}
+		\bibitem{b3} P. Spirtes, C. Glymour, and R. Scheines, \textit{Causation, Prediction, and Search}, 2nd ed. Cambridge, MA, USA: MIT Press, 2000.
+		\bibitem{b4} D. Colombo and M. H. Maathuis, ``Order-independent constraint-based causal structure learning,'' \textit{JMLR}, vol. 15, pp. 3741--3782, 2014.
+	\end{thebibliography}
+
+\end{document}

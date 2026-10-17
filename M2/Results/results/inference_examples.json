@@ -1,0 +1,57 @@
+[
+  {
+    "evidence": {
+      "ALLERGY": 1
+    },
+    "posterior": {
+      "0": 0.03921568627450981,
+      "1": 0.9607843137254902
+    },
+    "warning": "Descriptive full-data fit; not a held-out estimate."
+  },
+  {
+    "evidence": {
+      "ALLERGY": 1,
+      "ALCOHOL_CONSUMING": 1
+    },
+    "posterior": {
+      "0": 0.03921568627450981,
+      "1": 0.9607843137254902
+    },
+    "warning": "Descriptive full-data fit; not a held-out estimate."
+  },
+  {
+    "evidence": {
+      "SMOKING": 1
+    },
+    "posterior": {
+      "0": 0.1451893585416349,
+      "1": 0.854810641458365
+    },
+    "warning": "Descriptive full-data fit; not a held-out estimate."
+  },
+  {
+    "evidence": {
+      "SMOKING": 1,
+      "WHEEZING": 1,
+      "COUGHING": 1
+    },
+    "posterior": {
+      "0": 0.14270150820341548,
+      "1": 0.8572984917965845
+    },
+    "warning": "Descriptive full-data fit; not a held-out estimate."
+  },
+  {
+    "evidence": {
+      "ALLERGY": 0,
+      "ALCOHOL_CONSUMING": 0,
+      "SWALLOWING_DIFFICULTY": 0
+    },
+    "posterior": {
+      "0": 0.368714354983583,
+      "1": 0.631285645016417
+    },
+    "warning": "Descriptive full-data fit; not a held-out estimate."
+  }
+]
