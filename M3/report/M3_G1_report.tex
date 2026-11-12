@@ -1,0 +1,396 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}
+\usepackage{courier}
+\usepackage[left=0.625in,right=0.625in,top=0.75in,bottom=0.9in,columnsep=0.25in]{geometry}
+\usepackage{graphicx,booktabs,amsmath,amssymb,multirow,array,tabularx,enumitem,float,cuted,balance}
+\usepackage[font=small,labelfont=small]{caption}
+\usepackage{titlesec}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\renewcommand{\_}{\textunderscore\hspace{0pt}}
+\newcommand{\V}[1]{{\texttt{\footnotesize #1}}}
+\setlength{\parindent}{1.2em}
+\setlength{\parskip}{0pt}
+\renewcommand{\arraystretch}{1.08}
+\setlist{nosep,leftmargin=1.4em,itemsep=1pt}
+
+\titleformat{\section}{\centering\normalfont\small\scshape}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\normalfont\small\itshape}{\thesubsection.}{0.5em}{}
+\titlespacing*{\section}{0pt}{9pt}{4pt}
+\titlespacing*{\subsection}{0pt}{6pt}{2pt}
+\renewcommand{\thesection}{\Roman{section}}
+\renewcommand{\thesubsection}{\Alph{subsection}}
+
+\captionsetup[figure]{name={Fig.},labelsep=period,justification=justified}
+\captionsetup[table]{labelsep=newline,justification=centering,textfont=sc,labelfont=sc,skip=3pt}
+\renewcommand{\tablename}{Table}
+\renewcommand{\thetable}{\Roman{table}}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+
+\pagestyle{plain}
+
+\begin{document}
+
+\twocolumn[{%
+\begin{center}
+{\fontsize{17}{20}\selectfont\bfseries Interpretable Risk-Factor Dependency Modeling for Lung Cancer Prediction Using Probabilistic Graphical Models}\\[5pt]
+{\large Milestone 3: Results and Analysis}\\[9pt]
+\begin{minipage}[t]{2.2in}\centering{\large Priyam Modi}\\[1pt]\small Group 1, CSE 516 -- Applied AI\\ School of Engineering and Applied\\ Sciences, Ahmedabad University\end{minipage}\hfill\begin{minipage}[t]{2.2in}\centering{\large Rushin Modi}\\[1pt]\small Group 1, CSE 516 -- Applied AI\\ School of Engineering and Applied\\ Sciences, Ahmedabad University\end{minipage}\hfill\begin{minipage}[t]{2.2in}\centering{\large Jash Odedara}\\[1pt]\small Group 1, CSE 516 -- Applied AI\\ School of Engineering and Applied\\ Sciences, Ahmedabad University\end{minipage}
+\end{center}
+\vspace{6pt}
+\begin{center}
+\begin{minipage}{6.95in}
+\small\itshape\bfseries Abstract---\mdseries
+This report presents the Milestone 3 (M3) results of our study of lung-cancer risk factors with probabilistic graphical models (PGMs). On 276 de-duplicated survey records we ran $5\times5$ repeated stratified cross-validation and compared a PC-learned Bayesian network (BN), with and without four clinically protected SMOKING edges, against logistic regression, an RBF-kernel SVM and a small MLP under identical folds. Logistic regression discriminated best (AUROC $0.938\pm0.009$), followed by the SVM ($0.912\pm0.020$), the BN ($0.822\pm0.008$) and the MLP ($0.566\pm0.127$). The BN had the lowest expected calibration error (0.043) but no better Brier score or log-loss than logistic regression or the SVM, and at the 0.5 threshold it recognised only 12.6\% of NO cases (F1 for NO $0.187\pm0.080$). The protected edges changed nothing measurable. For structure learning, the PC skeleton grew from $7.3$ to $18$ edges as the training fraction rose from 20\% to 100\% without plateauing; some edges incident to the target were unstable. Exact inference matched brute-force enumeration to $2.2\times10^{-16}$ and ran in $0.10$--$0.42$\,ms. We conclude that on this dataset the PGM's advantage is explicit partial-evidence probabilistic inference and an inspectable dependency graph, not discriminative accuracy. No NGM was implemented, so literature numbers remain external references.
+\par\medskip
+\textit{\bfseries Index Terms}---\textit{Probabilistic graphical models, PC algorithm, Bayesian networks, calibration, bootstrap edge stability, lung cancer, robustness, statistical comparison.}
+\end{minipage}
+\end{center}
+\vspace{8pt}
+}]
+
+%==========================================================
+\section{Introduction}
+Milestone 1 (M1) asked whether a PGM that represents dependencies among risk factors and symptoms can match the predictive quality of standard classifiers while adding an interpretable dependency map and calibrated uncertainty. Milestone 2 (M2) built the pipeline: data audit, PC structure learning, a Dirichlet-smoothed BN with exact inference, and three discriminative baselines. M3 asks what the evidence says. Following the course brief, our aim is not to make the PGM win but to determine \emph{when} it helps and when it does not.
+
+We test three hypotheses stated or implied in M1:
+\begin{itemize}
+\item \textbf{H1 (prediction).} A PC-learned BN predicts \V{LUNG\_CANCER} about as well as logistic regression, an SVM or an MLP.
+\item \textbf{H2 (structure).} PC recovers a stable, interpretable dependency structure from 276 samples.
+\item \textbf{H3 (inference).} The BN provides exact, fast, calibrated posteriors under partial evidence, which fixed-input classifiers cannot.
+\end{itemize}
+This report adds the following over M2: repeated cross-validation with mean$\pm$SD and 95\% intervals; paired tests; log-loss, Brier score, expected calibration error (ECE) and reliability diagrams; a protected-edge ablation; $\alpha$-sensitivity, bootstrap edge stability and sample-size studies of the learned structure; a graphical-lasso comparison; test-time missingness and noise; exact-inference validation and runtime; error analysis; and a revised SOTA position relative to Neural Graphical Models (NGMs) \cite{ngm}. All numbers below are taken from the saved experiment outputs (\texttt{results\_m3/}); any quantity computed afterwards from those files is stated as such.
+
+%==========================================================
+\section{Experimental Design}
+\subsection{Data and preprocessing}
+The Kaggle lung-cancer survey \cite{kaggle} has 309 rows and 16 columns; 33 exact duplicates were removed, leaving 276 rows (238 YES, 38 NO). The majority-class rate is $0.862$, so a trivial always-YES classifier has accuracy $0.862$. \V{AGE} spans 21--87. For the BN, \V{AGE} is discretised into three bins whose cut points are fitted on the training fold only; the other models use a median-imputed, standardised \V{AGE}. All learned transformations are fitted inside training folds.
+
+\subsection{Models and settings}
+\textbf{Logistic regression (LR):} balanced class weights, \texttt{max\_iter}=3000. \textbf{SVM:} RBF kernel, $C=1$, balanced class weights, Platt-scaled probabilities. \textbf{MLP:} hidden layers (32,16), L2 penalty 0.01, early stopping, \texttt{max\_iter}=1200. \textbf{PC-learned BN:} skeleton by PC with a conditional likelihood-ratio ($G$) test summed over conditioning strata, $\alpha=0.05$, maximum conditioning-set size 3; collider and Meek orientation; DAG extension; Dirichlet-smoothed CPTs ($\alpha_0=1$); exact variable elimination. Structure \emph{and} parameters are re-learned from each training fold. Two BN variants are compared: \emph{plain PC} and \emph{protected edges}, in which four SMOKING edges (to \V{WHEEZING}, \V{YELLOW\_FINGERS}, \V{CHRONIC\_DISEASE}, \V{COUGHING}) are forced into the skeleton as a clinical modelling choice, as in M2. No hyper-parameters were tuned for any model.
+
+\subsection{Protocol and statistics}
+We use \texttt{RepeatedStratifiedKFold} (5 folds $\times$ 5 repeats, seed 516) with identical splits for all models. Out-of-fold predictions are pooled within each repeat (276 predictions), giving five repeat-level observations per model, from which we report mean $\pm$ SD (ddof=1) and a 95\% $t$-interval (df=4). F1 for the NO class uses the 0.5 threshold with NO as the positive label. ECE uses ten equal-width bins. Paired comparisons use a paired $t$-test and the Wilcoxon signed-rank test across the five repeats. These are exploratory: repeats reuse the same 276 rows, so they are not independent and $t$-test $p$-values are optimistic \cite{nadeau}. Moreover, with $n=5$ pairs the smallest attainable two-sided Wilcoxon $p$ is $0.0625$, so it cannot reach 0.05 by construction; we therefore rely on effect sizes and consistency across repeats (wins out of 5) as the primary evidence. The paired-test table was computed from \texttt{repeat\_level\_metrics.csv}.
+
+\subsection{Further experiments}
+(i) PC at $\alpha\in\{0.01,0.05,0.10\}$, plain and protected; (ii) 100 bootstrap resamples at $\alpha=0.05$ with plain PC; (iii) subsamples of 20--100\% of the data (10 draws each) to study structure versus sample size; (iv) test-time corruption of held-out features (10\%/20\% missing completely at random; 5\%/10\% feature noise, i.e.\ binary flips and Gaussian noise on \V{AGE}) with models trained on clean data and train-fold imputation; (v) graphical lasso with cross-validated penalty; (vi) variable-elimination (VE) against brute-force enumeration with 30 random queries per evidence-set size; (vii) pooled confusion matrices. No structural Hamming distance (SHD) is reported because the real data have no ground-truth graph; edge counts, density and bootstrap frequencies are used instead.
+
+%==========================================================
+\section{Predictive Results}
+\subsection{KPI comparison}
+Table~\ref{tab:kpi} and Fig.~\ref{fig:kpi} give the main results.
+
+\begin{table*}[t]
+\centering
+\caption{Repeated-CV KPIs (mean $\pm$ SD over 5 repeats of 5-fold CV; best per column in bold)}
+\label{tab:kpi}
+\scriptsize
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+Model & AUROC $\uparrow$ & AUPRC $\uparrow$ & F1 (NO) $\uparrow$ & Brier $\downarrow$ & Log-loss $\downarrow$ & ECE $\downarrow$ & Accuracy \\
+\midrule
+Logistic Regression & \textbf{0.938}$\pm$0.009 & \textbf{0.990}$\pm$0.002 & \textbf{0.623}$\pm$0.027 & 0.091$\pm$0.005 & 0.301$\pm$0.013 & 0.118$\pm$0.003 & 0.864$\pm$0.008 \\
+SVM (RBF) & 0.912$\pm$0.020 & 0.984$\pm$0.005 & 0.508$\pm$0.072 & \textbf{0.079}$\pm$0.005 & \textbf{0.253}$\pm$0.016 & 0.052$\pm$0.011 & \textbf{0.882}$\pm$0.011 \\
+PC-BN (plain PC) & 0.822$\pm$0.008 & 0.967$\pm$0.003 & 0.187$\pm$0.080 & 0.099$\pm$0.004 & 0.316$\pm$0.010 & 0.043$\pm$0.005 & 0.854$\pm$0.015 \\
+PC-BN (protected edges) & 0.820$\pm$0.009 & 0.967$\pm$0.003 & 0.170$\pm$0.080 & 0.100$\pm$0.003 & 0.317$\pm$0.010 & \textbf{0.040}$\pm$0.006 & 0.854$\pm$0.008 \\
+Neural Network (MLP) & 0.566$\pm$0.127 & 0.883$\pm$0.051 & 0.085$\pm$0.121 & 0.191$\pm$0.021 & 0.572$\pm$0.045 & 0.268$\pm$0.034 & 0.843$\pm$0.015 \\
+\midrule
+\multicolumn{8}{@{}l}{\footnotesize Majority-class (always YES) accuracy: 0.862.}\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.78\textwidth]{figs/fig_kpi.png}
+\caption{Classifier KPIs, mean $\pm$ SD across 5 repeats of 5-fold CV (identical splits for all models). BN = PC-learned Bayesian network; ``prot.'' = with protected SMOKING edges. Values are those in Table~\ref{tab:kpi}.}
+\label{fig:kpi}
+\end{figure*}
+
+\begin{table}[t]
+\centering
+\caption{95\% confidence intervals ($t$, df=4) for the repeat-level means}
+\label{tab:ci}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Model & AUROC & F1 (NO) & Brier & Log-loss & ECE \\
+\midrule
+LR & [.926,.949] & [.590,.657] & [.085,.097] & [.285,.318] & [.114,.121]\\
+SVM & [.887,.936] & [.418,.597] & [.073,.085] & [.233,.273] & [.038,.067]\\
+BN plain & [.812,.832] & [.087,.287] & [.094,.105] & [.304,.328] & [.036,.049]\\
+BN prot. & [.809,.832] & [.071,.269] & [.097,.104] & [.305,.329] & [.033,.047]\\
+MLP & [.408,.724] & [.000,.234]$^{*}$ & [.165,.217] & [.516,.628] & [.225,.310]\\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}\footnotesize $^{*}$Lower limit $-0.065$ truncated at 0.
+\end{table}
+
+\textbf{What happened.} LR has the highest AUROC, AUPRC and F1(NO); the SVM has the lowest Brier score and log-loss and the highest accuracy; the BN is third on AUROC; the MLP is last on almost every metric. The AUROC intervals of LR and the SVM overlap slightly, whereas the BN interval ($[0.812,0.832]$) is disjoint from both. The MLP is also highly unstable (AUROC SD 0.127; individual repeats ranged from 0.383 to 0.667).
+
+\textbf{Was it expected?} The ordering LR $>$ SVM $>$ BN $>$ MLP agrees with M2, with all values moving slightly down (e.g.\ LR 0.956 $\to$ 0.938, MLP 0.672 $\to$ 0.566), which is what repeating the split should do after a single favourable partition. AUPRC is high for every model (0.88--0.99) mainly because 86\% of rows are YES; it is not informative here. Likewise accuracy is nearly uninformative: LR (0.864) equals the always-YES rate, the BN (0.854) and MLP (0.843) are \emph{below} it, and only the SVM (0.882) is above it.
+
+\textbf{Why.} In the final DAG, the Markov blanket of \V{LUNG\_CANCER} contains only five variables (\V{ALLERGY}, \V{PEER\_PRESSURE}, \V{SWALLOWING\_DIFFICULTY}, \V{ANXIETY}, \V{SHORTNESS\_OF\_BREATH}), so the BN classifier effectively uses 5 of 15 features, whereas LR and the SVM use all. At the full-data CI test, several variables are strongly associated with the target marginally (e.g.\ \V{ALCOHOL\_CONSUMING}, $p=5.8\times10^{-7}$; \V{COUGHING}, $2.5\times10^{-5}$; \V{WHEEZING}, $2.8\times10^{-5}$) but are not in its blanket. This is consistent with a sparse PC structure discarding predictive information, as suggested in M2, but we did not run the experiment that would test it (e.g.\ a BN with the blanket expanded). The MLP's instability is probably an untuned-small-data effect (early stopping uses a validation split of only a few NO cases), but we did not diagnose it; we therefore treat it as a weak baseline rather than as evidence about neural models in general.
+
+\textbf{Limitation.} Pooling 276 out-of-fold predictions per repeat gives stable estimates of the mean but only five repeat-level points; and only 38 NO cases limit every NO-class metric.
+
+\subsection{Statistical comparison}
+Table~\ref{tab:paired} compares every model with the plain-PC BN across the five repeats.
+
+\begin{table*}[t]
+\centering
+\caption{Paired comparison against the plain-PC BN over 5 repeats: difference of means (model $-$ BN); paired $t$-test $p$ / Wilcoxon $p$}
+\label{tab:paired}
+\scriptsize
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Metric & LR & SVM & MLP & BN (protected) \\
+\midrule
+AUROC $\uparrow$ & $+0.115$; $<$.001 / .063 & $+0.090$; .001 / .063 & $-0.256$; .011 / .063 & $-0.002$; .554 / .625\\
+F1 (NO) $\uparrow$ & $+0.437$; $<$.001 / .063 & $+0.321$; $<$.001 / .063 & $-0.102$; .279 / .313 & $-0.016$; .204 / .500\\
+Brier $\downarrow$ & $-0.008$; .106 / .188 & $-0.020$; .003 / .063 & $+0.092$; $<$.001 / .063 & $+0.001$; .421 / .875\\
+Log-loss $\downarrow$ & $-0.014$; .188 / .313 & $-0.063$; .001 / .063 & $+0.256$; $<$.001 / .063 & $+0.001$; .487 / .875\\
+ECE $\downarrow$ & $+0.075$; $<$.001 / .063 & $+0.010$; .218 / .313 & $+0.225$; $<$.001 / .063 & $-0.003$; .468 / .625\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+LR and the SVM beat the BN on AUROC and F1(NO) in 5 of 5 repeats (effects of $+0.09$ to $+0.12$ AUROC and $+0.32$ to $+0.44$ F1), and the MLP loses to the BN on AUROC in 5 of 5 repeats. The differences in Brier score between LR and the BN are small ($-0.008$) and not distinguishable from zero ($p_t=0.106$); the SVM's Brier and log-loss advantages over the BN ($-0.020$, $-0.063$) are consistent across repeats. Between LR and the SVM, LR is better on AUROC ($+0.026$, $p_t=0.013$) and F1(NO) ($+0.116$, $p_t=0.010$), the SVM on Brier ($-0.012$, $p_t=0.006$) and log-loss ($-0.049$, $p_t=0.002$); the Wilcoxon $p$ is $0.0625$ for all four, the minimum possible. Because of the shared data and the attainable-$p$ floor, these are consistent effects across repeats rather than confirmed significance.
+
+\subsection{Probability quality and calibration}
+The task requires probabilities, not only labels. On \emph{ECE}, the BN (0.040--0.043) and the SVM (0.052) are best, LR is worse (0.118) and the MLP is worst (0.268). On \emph{Brier score and log-loss}, however, the SVM is best, LR second and the BN third, so the BN's calibration advantage is not matched by sharper or more accurate probabilities: its Brier ($0.099$) is within $0.008$ of LR's and its log-loss (0.316) is $0.015$ above it.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figs/reliability_diagram.png}
+\caption{Reliability diagram of pooled out-of-fold predictions (10 bins). The dashed line is perfect calibration. The bins at the extremes contain few NO cases, so those points are noisy.}
+\label{fig:rel}
+\end{figure}
+
+Fig.~\ref{fig:rel} shows how the models differ. LR lies mostly \emph{above} the diagonal, i.e.\ its positive probabilities are too low; this is plausible given balanced class weights, which shift probabilities toward the minority class (not tested separately). The SVM and BN fall \emph{below} the diagonal mainly in the 0.65--0.9 range, i.e.\ they are over-confident for YES there, and lie above it at lower probabilities; with few cases per bin these curves are noisy. The BN has no points below a predicted probability of about 0.3: it essentially never assigns a low probability of cancer, which is why its F1(NO) is poor. The MLP curve is non-monotone and collapses in its highest bin. ECE with ten bins is dominated by the highly populated high-probability bins, where positives are common, so a low ECE here does not imply good discrimination. Hence H3's ``calibrated'' claim is supported only in the narrow ECE sense.
+
+\subsection{Ablation: clinically protected SMOKING edges}
+The protected and plain BN variants are statistically indistinguishable on every metric (Table~\ref{tab:paired}, last column; AUROC $0.820$ vs.\ $0.822$, F1(NO) $0.170$ vs.\ $0.187$, all $p_t>0.2$). The protected-edge variant had a nominally lower ECE ($0.040$ vs.\ $0.043$), but the difference is a third of one SD. Imposing the clinical prior neither helps nor hurts prediction; its value is purely representational (Section~IV-F).
+
+\subsection{Error analysis}
+Table~\ref{tab:cm} pools all out-of-fold predictions (each row appears once per repeat, so counts are five times the underlying 38 NO and 238 YES) at the 0.5 threshold.
+
+\begin{table}[t]
+\centering
+\caption{Pooled confusion counts at threshold 0.5 (NO = class 0; $5\times$ repeated rows)}
+\label{tab:cm}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrrcc@{}}
+\toprule
+Model & TN & FP & FN & TP & Spec.\,(NO) & Sens.\,(YES)\\
+\midrule
+LR & 155 & 35 & 152 & 1038 & 0.816 & 0.872\\
+SVM & 85 & 105 & 58 & 1132 & 0.447 & 0.951\\
+BN plain & 24 & 166 & 35 & 1155 & 0.126 & 0.971\\
+BN prot. & 22 & 168 & 34 & 1156 & 0.116 & 0.971\\
+MLP & 11 & 179 & 38 & 1152 & 0.058 & 0.968\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The BN, SVM and MLP behave like near-majority predictors: they find 12.6\%, 44.7\% and 5.8\% of NO cases while missing only 2.9\%, 4.9\% and 3.2\% of YES cases. LR makes a different trade, recognising 81.6\% of NO cases at the cost of missing 12.8\% of YES cases. Which error matters more is a clinical question; for screening, missed cancers are usually costlier, which would favour the BN/SVM operating point, but the dataset is not suitable for such a decision. The threshold was not tuned, so F1(NO) reflects the default operating point; the BN's AUROC of 0.82 shows it does have some ranking ability that a different threshold could expose. This was not evaluated.
+
+%==========================================================
+\section{Structure-Learning Results}
+\subsection{Learned graph}
+Fig.~\ref{fig:dag} shows the DAG learned on the full data with the protected edges. The skeleton has 22 edges (18 from plain PC plus the four SMOKING edges); the CPDAG has no undirected edges and no orientation conflicts, and \V{AGE} is isolated. The orientation log labels all 22 edges ``PC compelled''; for the four SMOKING edges this means only that they were oriented by the collider and Meek rules applied to the merged skeleton, not that PC discovered them. Because every edge ended up directed from a sparse graph with few separating-set decisions, orientation is a fragile output; we did not test orientation stability, so the arrows are not causal claims. The predictive BNs are re-learned per fold and can differ from this full-data graph.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.72\textwidth]{figs/fig_dag.png}
+\caption{PC-learned DAG extension on the full data ($\alpha=0.05$, protected SMOKING edges). \V{LUNG\_CANCER} is red; its Markov blanket is yellow; thick red edges are the four SMOKING edges added by the clinical merge. Arrows are DAG orientations, not causal directions.}
+\label{fig:dag}
+\end{figure*}
+
+\subsection{Sensitivity to the significance level}
+\begin{table}[t]
+\centering
+\caption{Skeleton size versus $\alpha$ (density = edges/120 possible)}
+\label{tab:alpha}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}cccccp{1.25in}@{}}
+\toprule
+$\alpha$ & Plain & Dens. & Prot. & Dens. & Plain-PC neighbours of target\\
+\midrule
+0.01 & 14 & 0.117 & 18 & 0.150 & \V{ALLERGY}, \V{PEER\_PRESSURE}, \V{SWALLOWING\_DIFF.}\\
+0.05 & 18 & 0.150 & 22 & 0.183 & same three\\
+0.10 & 25 & 0.208 & 26 & 0.217 & above $+$ \V{ALCOHOL\_CONSUMING}, \V{FATIGUE}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Edge counts grow monotonically with $\alpha$ (Table~\ref{tab:alpha}, Fig.~\ref{fig:alpha}), and the edge sets are nested: every edge present at a smaller $\alpha$ is also present at the larger ones, for both variants. The neighbours of \V{LUNG\_CANCER} are unchanged between $\alpha=0.01$ and $0.05$ and gain two edges at $0.10$. The full-data run logged 852 CI tests (120, 402, 250 and 80 at conditioning-set sizes 0 to 3), so the size limit 3 was reached; plain PC at $\alpha=0.05$ used 761. Protected edges are still tested (75 logged tests) but never removed, so they and their neighbours stay in play longer. This matches the expectation that more permissive thresholds retain more weak dependencies, and shows that the target's local structure is stable across the usual $\alpha$ range while the global graph is not.
+
+\subsection{Bootstrap edge stability}
+Fig.~\ref{fig:boot} shows the 15 most frequently selected edges in 100 bootstrap resamples (plain PC, $\alpha=0.05$). Reading from the figure, eight edges are selected in roughly 90\% or more of resamples: \V{FATIGUE}--\V{SHORTNESS\_OF\_BREATH}, \V{ANXIETY}--\V{YELLOW\_FINGERS}, \V{ALCOHOL\_CONSUMING}--\V{GENDER}, \V{ANXIETY}--\V{SWALLOWING\_DIFFICULTY} (all about 1.0), \V{COUGHING}--\V{WHEEZING}, \V{CHEST\_PAIN}--\V{GENDER}, \V{ALLERGY}--\V{LUNG\_CANCER} and \V{COUGHING}--\V{SHORTNESS\_OF\_BREATH}. The remaining seven plotted edges lie roughly between 0.6 and 0.9. Among edges incident to the target, \V{ALLERGY}--\V{LUNG\_CANCER} is stable, \V{LUNG\_CANCER}--\V{SWALLOWING\_DIFFICULTY} is selected in about three quarters of resamples, and \V{PEER\_PRESSURE}--\V{LUNG\_CANCER}, although present in the full-data graph, does not appear in the top 15, so it was selected in fewer than roughly 60\% of resamples. The conclusion for H2 is therefore mixed: a stable core exists, but at least one of the target's three neighbours is not reliably recovered. We attach no clinical interpretation to the strongest edge (\V{ANXIETY}--\V{YELLOW\_FINGERS}); it is a statistical regularity of this survey. All frequencies in this subsection are read from Fig.~\ref{fig:boot}; exact values are in \texttt{pc\_bootstrap\_edge\_stability.csv}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figs/pc_edge_stability.png}
+\caption{Bootstrap selection frequency of the 15 most stable PC edges (100 resamples, plain PC, $\alpha=0.05$).}
+\label{fig:boot}
+\end{figure}
+
+\subsection{Sample size versus learned structure}
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.40\textwidth]{figs/pc_alpha_edge_sensitivity.png}\hspace{0.04\textwidth}
+\includegraphics[width=0.40\textwidth]{figs/sample_size_vs_edges.png}
+\caption{Left: skeleton edge count versus PC significance level $\alpha$ (plain vs.\ protected). Right: PC skeleton edges versus training-sample fraction (mean $\pm$ SD over 10 random subsamples, $\alpha=0.05$, plain PC).}
+\label{fig:alpha}
+\end{figure*}
+
+\begin{table}[t]
+\centering
+\caption{PC skeleton versus sample size (plain PC, $\alpha=0.05$; 10 subsamples per size)}
+\label{tab:ss}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}rccc@{}}
+\toprule
+$n$ & Edges (mean$\pm$SD) & Density & CI tests\\
+\midrule
+55 (20\%) & $7.3\pm1.4$ & 0.061 & $198\pm19$\\
+110 (40\%) & $11.7\pm2.2$ & 0.097 & $297\pm49$\\
+166 (60\%) & $14.1\pm1.1$ & 0.117 & $414\pm63$\\
+221 (80\%) & $16.8\pm1.4$ & 0.140 & $600\pm64$\\
+276 (100\%) & $18$ (single run) & 0.150 & 761\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The number of learned edges rises steadily with $n$ (Table~\ref{tab:ss}, Fig.~\ref{fig:alpha}) from $7.3$ at 55 samples to $18$ at 276, with no visible plateau between 80\% and 100\%. This is expected: CI tests gain power as $n$ grows, so weaker dependencies become detectable. It also implies that the 18-edge graph is itself sample-limited and that more data would probably add edges. The recommended ``sample size versus SHD'' plot cannot be produced on real data without a ground-truth graph; edge count and density against $n$ are used instead. The 100\% point is a single deterministic run, and subsamples of smaller size are drawn from the same 276 rows, so the SDs understate sampling variability.
+
+\subsection{Comparison with the graphical lasso}
+The graphical lasso (cross-validated penalty $0.0276$) returns 82 edges among 16 nodes (density $0.683$) against 18--22 for PC (density $0.15$--$0.18$). All 22 edges of the protected PC skeleton, and all 18 of plain PC, are among the 82 lasso edges, so PC's graph is a subgraph of the lasso graph (Jaccard similarity with the protected skeleton $0.27$). Of the lasso edges, 37 have $|\rho|>0.1$ and 11 have $|\rho|>0.2$; the strongest are \V{YELLOW\_FINGERS}--\V{ANXIETY} ($0.42$), \V{FATIGUE}--\V{SHORTNESS\_OF\_BREATH} ($0.33$), \V{ANXIETY}--\V{SWALLOWING\_DIFFICULTY} ($0.33$), \V{GENDER}--\V{ALCOHOL\_CONSUMING} ($0.29$), \V{GENDER}--\V{CHEST\_PAIN} ($0.24$) and \V{WHEEZING}--\V{COUGHING} ($0.24$), which are also among PC's most stable edges. The two methods therefore agree on the strong core and disagree on the weak edges. They also disagree on the target: the lasso's largest partial correlations with \V{LUNG\_CANCER} are with \V{ALCOHOL\_CONSUMING} ($0.21$), \V{ALLERGY} ($0.21$) and \V{FATIGUE} ($0.17$), and PC links the target to \V{ALLERGY}, \V{SWALLOWING\_DIFFICULTY} and \V{PEER\_PRESSURE} instead. The lasso is a Gaussian-model estimate applied to mostly binary data and is not a causal graph; the two graphs are not directly comparable by a single score.
+
+\subsection{The SMOKING node}
+\begin{table}[t]
+\centering
+\caption{CI decisions involving SMOKING in the full-data run ($\alpha=0.05$)}
+\label{tab:smk}
+\scriptsize
+\begin{tabular}{@{}llc@{}}
+\toprule
+Pair & Conditioning set & $p$-value\\
+\midrule
+\V{SMOKING}--\V{ANXIETY} & \V{COUGHING} & 0.0630\\
+\V{SMOKING}--\V{CHRONIC\_DISEASE}$^{\dagger}$ & \V{GENDER} & 0.0523\\
+\V{SMOKING}--\V{WHEEZING}$^{\dagger}$ & \V{FATIGUE} & 0.0518\\
+\V{SMOKING}--\V{COUGHING}$^{\dagger}$ & \V{ANXIETY} & 0.1143\\
+\V{SMOKING}--\V{YELLOW\_FINGERS}$^{\dagger}$ & (marginal) & 0.7296\\
+\V{SMOKING}--\V{LUNG\_CANCER} & (marginal) & 0.5629\\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}\footnotesize $^{\dagger}$Edge restored by the clinical merge.
+\end{table}
+
+In the full-data run PC removed every edge incident to SMOKING, each with $p>\alpha$ at the deciding conditioning set (Table~\ref{tab:smk}). Three of the four recorded decisions lie within 0.013 of the threshold, and \V{SMOKING}--\V{LUNG\_CANCER} is marginally non-significant ($p=0.563$) in this sample. At $\alpha=0.10$ plain PC attaches SMOKING to \V{CHRONIC\_DISEASE}, \V{WHEEZING} and \V{ANXIETY}. The lasso keeps SMOKING connected to all variables but with small partial correlations (largest $|\rho|=0.136$ with \V{CHRONIC\_DISEASE}; $0.045$ with \V{LUNG\_CANCER}). We read this as weak, threshold-dependent evidence in a small self-reported sample, not as evidence that smoking is unrelated to lung cancer. One caution: \V{SMOKING}--\V{YELLOW\_FINGERS} is marginally independent here ($p=0.73$), so protecting that edge imposes a prior that the data does not support. The p-values differ in the third decimal from the M2 table because the M3 run was re-executed with the final code.
+
+%==========================================================
+\section{Robustness Analysis}
+Models were trained on clean data and the \emph{held-out} features were corrupted (Table~\ref{tab:rob}, Fig.~\ref{fig:rob}); this uses a single 5-fold split, so each fold has about 55 test rows and about 8 NO cases. Missing values are imputed with training-fold medians/modes for all models, and the BN is the protected-edge variant. Fold-level metrics are averaged here, whereas Section~III pools predictions per repeat, which is why clean-condition values differ slightly (e.g.\ LR AUROC 0.958 here vs.\ 0.938; fold-level ECE is probably also inflated by the small test folds).
+
+\begin{table*}[t]
+\centering
+\caption{Test-time corruption: AUROC (mean $\pm$ SD over 5 folds) and Brier score (mean)}
+\label{tab:rob}
+\scriptsize
+\begin{tabular}{@{}lcccc|cccc@{}}
+\toprule
+& \multicolumn{4}{c|}{AUROC} & \multicolumn{4}{c}{Brier (lower is better)}\\
+Condition & LR & SVM & BN & MLP & LR & SVM & BN & MLP\\
+\midrule
+Clean & .958$\pm$.023 & .939$\pm$.022 & .812$\pm$.041 & .553$\pm$.210 & .084 & .075 & .103 & .191\\
+MCAR 10\% & .948$\pm$.029 & .933$\pm$.030 & .786$\pm$.059 & .536$\pm$.224 & .079 & .080 & .110 & .192\\
+MCAR 20\% & .879$\pm$.103 & .869$\pm$.096 & .724$\pm$.069 & .637$\pm$.128 & .089 & .098 & .120 & .190\\
+Noise 5\% & .937$\pm$.021 & .923$\pm$.020 & .758$\pm$.058 & .535$\pm$.235 & .098 & .081 & .111 & .192\\
+Noise 10\% & .884$\pm$.076 & .882$\pm$.053 & .730$\pm$.063 & .481$\pm$.124 & .125 & .094 & .115 & .197\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figs/robustness_auroc.png}
+\caption{AUROC under test-time missingness (MCAR) and noise, mean over 5 folds.}
+\label{fig:rob}
+\end{figure}
+
+\textbf{What happened.} All models degrade as the corruption rate increases. From clean to 20\% MCAR, AUROC drops by $0.078$ (LR), $0.070$ (SVM) and $0.088$ (BN); from clean to 10\% noise by $0.074$, $0.056$ and $0.082$. The ranking LR $\gtrsim$ SVM $>$ BN $>$ MLP is preserved in every condition (LR and SVM are tied at 10\% noise). LR's Brier score deteriorates most under noise ($0.084\to0.125$), overtaking the BN's ($0.103\to0.115$) at 10\% noise. The MLP's apparent \emph{gain} at 20\% MCAR ($0.553\to0.637$) is noise around chance.
+
+\textbf{Interpretation.} Fold-level SDs (up to 0.10) are larger than the differences in degradation between models, so we cannot claim that any model is more robust than another, and we do not claim that the BN's explicit joint model protects it against missing evidence in this experiment. A fair test of that advantage would marginalise missing variables in the BN rather than impute them, which we did not do; this is the most natural follow-up to H3. What the experiment does show is that discriminative accuracy is retained to within about 0.1 AUROC under 20\% missingness, and that the ordering is not an artefact of clean data.
+
+%==========================================================
+\section{Inference Validation and Computational Cost}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figs/inference_runtime.png}
+\caption{Exact variable-elimination runtime for $P(\text{\V{LUNG\_CANCER}}\mid e)$ versus number of observed variables (mean $\pm$ SD of 30 random queries).}
+\label{fig:inf}
+\end{figure}
+
+For each evidence-set size from 0 to 15 observed variables we ran 30 random posterior queries on the full-data BN. For 0--4 evidence variables (150 queries) the VE posterior agreed with brute-force enumeration to a maximum absolute error of $2.2\times10^{-16}$, i.e.\ machine precision; beyond four variables the brute-force check was not run. Runtime (Fig.~\ref{fig:inf}) falls from $0.418\pm0.023$\,ms with no evidence to $0.102\pm0.007$\,ms with all 15 variables observed. The decline is expected: each observed variable is clamped and removed from elimination, so factors shrink. This is a property of one 16-node network on one machine, not a scalability result, and we did not time the discriminative models, so we make no speed comparison. Together with Section~III-A, it fits an accuracy--efficiency picture: BN inference is exact and effectively free, but is the less accurate predictor. In the BN, posterior queries with partial evidence are exact and need no retraining, which is the qualitative advantage argued for in M1 (H3) and the main reason to keep a PGM in the comparison.
+
+%==========================================================
+\section{Revised SOTA Positioning}
+\textbf{Identify and understand.} The anchor is Neural Graphical Models \cite{ngm}: an MLP trained as multi-task regression under a graph-adherence penalty, with gradient-based inference. Its lung-cancer appendix reports 5-fold CV scores of $0.95\pm0.02$ (LR) and $0.96\pm0.01$ (NGM) for \V{LUNG\_CANCER}, and $0.71\pm0.01$ and $0.79\pm0.02$ for \V{SMOKING}, but does not state the metric.
+
+\textbf{Compare and validate.} Our LR score ($0.938\pm0.009$ AUROC) is numerically close to the paper's 0.95, but the metric is unstated and the row count (284 versus 276 de-duplicated, 309 raw) and \V{AGE} handling (binarised versus three bins/continuous) differ; we therefore draw no direct comparison. We did not implement an NGM, so we cannot say whether it would close the gap between our BN and LR; the paper's infant-mortality results favour NGMs over a score-based BN, which is consistent in direction with our finding that a sparse discrete BN trails LR, but this is not evidence about the lung-cancer data.
+
+\textbf{Reposition.} M1 promised that a PGM would match standard classifiers while adding interpretability and calibrated uncertainty. The evidence supports a narrower claim:
+\begin{itemize}
+\item \textbf{H1 not supported for discrimination.} The BN trails LR and the SVM by $0.09$--$0.12$ AUROC in all five repeats, and is the worst at finding NO cases at the default threshold. The protected-edge prior does not repair this.
+\item \textbf{H2 partly supported.} A stable core of edges exists and agrees with the graphical lasso, but target-adjacent edges are less stable, and the graph grows with $n$ and $\alpha$.
+\item \textbf{H3 supported narrowly.} Inference is exact, validated and fast; calibration is best by ECE but not by Brier or log-loss.
+\end{itemize}
+A PGM is therefore advantageous here for \emph{partial-evidence queries, transparent probability computation and inspectable structure}, and not for ranking or minority-class detection. M1 items not delivered: hill-climbing/BIC structure learning (replaced by PC), the Naive Bayes baseline, held-out joint log-likelihood (we report target log-loss), the $P(\text{SMOKING}\mid\text{rest})$ query, a predictive learning curve (sample efficiency is shown for structure only), and the NGM extension. Bootstrap used 100 resamples against 20 planned.
+
+%==========================================================
+\section{Limitations}
+\begin{itemize}
+\item \textbf{Data:} 276 unique, self-reported, imbalanced rows (38 NO); not a clinical cohort; symptoms may be consequences of disease. Nothing here supports medical use.
+\item \textbf{Statistics:} repeated-CV tests are exploratory (shared rows, $n=5$ repeats, Wilcoxon floor 0.0625).
+\item \textbf{Baselines untuned:} the MLP's weakness may reflect missing tuning, not model class; thresholds and class weights were not optimised.
+\item \textbf{Structure:} no ground truth (no SHD); orientation stability and an alternative CI test for sparse tables were not examined; the protected edges are a prior, not a finding.
+\item \textbf{Robustness:} test-time corruption only, single 5-fold split, BN uses imputation rather than marginalisation.
+\item \textbf{Bootstrap:} frequencies in Section~IV-C are read from a figure.
+\end{itemize}
+
+%==========================================================
+\section{Conclusion}
+Under repeated, identical, leakage-free evaluation, logistic regression and the SVM are the better predictors of \V{LUNG\_CANCER} in this survey ($0.938$ and $0.912$ AUROC), the PC-learned BN is intermediate ($0.822$) and the untuned MLP is unreliable ($0.566$). The BN contributes exact, millisecond-scale partial-evidence inference, a readable graph with a stable core, and good ECE, but not better discrimination, minority-class recall or Brier score. The clinically protected SMOKING edges are a representational choice with no predictive effect. The learned structure is sample-limited and threshold-dependent, so structural claims should stay tentative. The next experiments are: widen the blanket or add features to the BN, marginalise instead of impute, tune the baselines and decision threshold, test on synthetic graphs with known ground truth (enabling SHD), and train a graph-constrained NGM on the PC graph.
+
+\section*{Reproducibility}
+\small
+Python 3.14.2, NumPy 2.4.2, pandas 3.0.3; seed 516; 5 folds $\times$ 5 repeats; 100 bootstrap resamples; PC $\alpha=0.05$, maximum conditioning-set size 3; Dirichlet $\alpha_0=1$. Experiments: \texttt{code\_M3.py} (imports \texttt{Code.py}); outputs in \texttt{results\_m3/}. Figures~\ref{fig:dag} and \ref{fig:kpi} were drawn from the saved result files; Tables~\ref{tab:ci} and \ref{tab:paired} were computed from \texttt{repeat\_level\_metrics.csv}.
+
+\begingroup
+\small
+\begin{thebibliography}{9}
+\bibitem{ngm} H.~Shrivastava and U.~Chajewska, ``Neural Graphical Models,'' arXiv:2210.00453, 2022.
+\bibitem{kaggle} N.~Alaswad, ``Lung Cancer Dataset,'' Kaggle. [Online]. Available: https://www.kaggle.com/datasets/nancyalaswad90/lung-cancer
+\bibitem{sgs} P.~Spirtes, C.~Glymour, and R.~Scheines, \emph{Causation, Prediction, and Search}, 2nd ed.\ MIT Press, 2000.
+\bibitem{colombo} D.~Colombo and M.~H.~Maathuis, ``Order-independent constraint-based causal structure learning,'' \emph{JMLR}, vol.~15, pp.~3741--3782, 2014.
+\bibitem{glasso} J.~Friedman, T.~Hastie, and R.~Tibshirani, ``Sparse inverse covariance estimation with the graphical lasso,'' \emph{Biostatistics}, vol.~9, no.~3, pp.~432--441, 2008.
+\bibitem{guo} C.~Guo, G.~Pleiss, Y.~Sun, and K.~Q.~Weinberger, ``On calibration of modern neural networks,'' in \emph{Proc.\ ICML}, 2017, pp.~1321--1330.
+\bibitem{nadeau} C.~Nadeau and Y.~Bengio, ``Inference for the generalization error,'' \emph{Machine Learning}, vol.~52, pp.~239--281, 2003.
+\end{thebibliography}
+\endgroup
+
+\end{document}

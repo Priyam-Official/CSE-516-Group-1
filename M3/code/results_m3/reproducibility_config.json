@@ -1,0 +1,51 @@
+{
+  "python": "3.14.2",
+  "numpy": "2.4.2",
+  "pandas": "3.0.3",
+  "dataset": "data/survey lung cancer.csv",
+  "rows_after_deduplication": 276,
+  "class_counts": {
+    "1": 238,
+    "0": 38
+  },
+  "seed": 516,
+  "folds": 5,
+  "repeats": 5,
+  "bootstrap_runs": 100,
+  "pc_alpha": 0.05,
+  "max_conditioning_set_size": 3,
+  "predictive_bn_ablation": [
+    "PC-learned Bayesian Network (protected edges)",
+    "PC-learned Bayesian Network (plain PC)"
+  ],
+  "protected_edges_used_for_predictive_BN": [
+    [
+      "CHRONIC_DISEASE",
+      "SMOKING"
+    ],
+    [
+      "SMOKING",
+      "WHEEZING"
+    ],
+    [
+      "COUGHING",
+      "SMOKING"
+    ],
+    [
+      "SMOKING",
+      "YELLOW_FINGERS"
+    ]
+  ],
+  "bootstrap_structure_uses_protected_edges": false,
+  "graphical_lasso_summary": {
+    "method": "Graphical Lasso",
+    "selected_alpha": 0.027557229216515777,
+    "nodes": 16,
+    "edges": 82,
+    "density": 0.6833333333333333,
+    "interpretation": "Undirected conditional-dependence estimate; not a causal graph."
+  },
+  "statistical_test_caveat": "Repeated-CV comparisons are exploratory because repeats share observations.",
+  "shd_note": "No SHD is reported on the real survey data because no ground-truth graph exists.",
+  "ngm_note": "No NGM was implemented; literature results remain external references."
+}

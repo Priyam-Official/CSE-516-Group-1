@@ -1,0 +1,8 @@
+{
+  "method": "Graphical Lasso",
+  "selected_alpha": 0.027557229216515777,
+  "nodes": 16,
+  "edges": 82,
+  "density": 0.6833333333333333,
+  "interpretation": "Undirected conditional-dependence estimate; not a causal graph."
+}
