@@ -1,0 +1,294 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage[T1]{fontenc}
+\usepackage{newtxtext,newtxmath}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\graphicspath{{./}}
+\graphicspath{{figures/}}
+\usepackage{booktabs,multirow,array}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+\setlist{nosep,leftmargin=*}
+\hyphenation{Bayesian graphical probabilistic}
+
+\title{Interpretable Risk-Factor Dependency Modeling for Lung Cancer Prediction Using Probabilistic Graphical Models}
+
+\author{
+\IEEEauthorblockN{Priyam Modi, Rushin Modi, and Jash Odedara}
+\IEEEauthorblockA{Group 1, CSE 516 -- Applied AI\\
+School of Engineering and Applied Sciences\\
+Ahmedabad University, Ahmedabad, India}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report presents the final evaluation of a probabilistic graphical modelling pipeline for the Kaggle Lung Cancer Survey dataset. The study investigates whether a PC-learned Bayesian Network (BN) offers advantages over discriminative classifiers, and identifies the conditions under which its explicit joint distribution and exact inference are useful. After removal of 33 exact duplicate records, the dataset contains 276 observations (238 YES and 38 NO). The principal predictive comparison uses five-fold stratified cross-validation repeated five times, with identical splits for logistic regression, an RBF support-vector machine (SVM), a multilayer perceptron (MLP), and two PC-learned BN variants. Logistic regression obtains the highest AUROC (0.938 $\pm$ 0.009), while the SVM obtains the lowest Brier score (0.079 $\pm$ 0.005) and log-loss (0.253 $\pm$ 0.016). The plain PC-BN obtains AUROC 0.822 $\pm$ 0.008 and the lowest expected calibration error (ECE, 0.043 $\pm$ 0.005), but has weak minority-class detection at the default threshold (F1 for NO: 0.187 $\pm$ 0.080). Four protected SMOKING edges do not measurably improve predictive performance. Supplementary M4 experiments validate variable elimination against brute-force enumeration for evidence sizes from zero to fifteen, with maximum absolute posterior difference $1.11\times10^{-16}$. On a single stratified 80/20 holdout, exact marginalization of missing variables gives higher AUROC than train-statistic imputation at 10\% and 20\% missingness; these results are exploratory because the test set contains only 56 observations. The evidence does not support the claim that the PGM is the best classifier. Instead, its defensible contribution is an inspectable dependency representation and exact posterior inference under partial evidence.
+\end{abstract}
+
+\noindent\textbf{Index Terms---}Probabilistic graphical models, Bayesian networks, PC algorithm, variable elimination, conditional independence, calibration, missing evidence, lung cancer survey.
+
+\section{Introduction}
+A discriminative classifier maps a fixed feature vector to a target score or probability. A probabilistic graphical model (PGM), in contrast, represents a joint distribution over variables and can answer conditional probability queries for different evidence subsets. The central question in this project is therefore not whether a PGM wins every predictive metric, but whether its representation and inference capabilities provide useful advantages that conventional classifiers do not directly expose.
+
+The project uses the PC algorithm to estimate a conditional-independence skeleton, orients edges using collider and Meek rules, extends the resulting graph to a DAG for BN parameterization, and estimates conditional probability tables (CPTs) using Dirichlet smoothing. The BN is evaluated alongside logistic regression, an RBF-SVM and an MLP. The M4 analysis consolidates the M1--M3 pipeline and adds explicit inference validation over the full evidence-size range, a held-out joint BN negative log-likelihood (NLL), and a comparison of exact marginalization with imputation under missing evidence.
+
+The study is observational. Neither an undirected dependency nor an arrow in a DAG extension is interpreted as a causal effect.
+
+\section{Problem Formulation}
+Let $V=\{X_1,\ldots,X_{15},Y\}$ denote the fifteen survey features and the binary target $Y=\texttt{LUNG\_CANCER}$. A BN is a directed acyclic graph $G=(V,E)$ with factorization
+\begin{equation}
+P(V)=\prod_{i=1}^{|V|}P(X_i\mid \mathrm{Pa}(X_i)),
+\end{equation}
+where $\mathrm{Pa}(X_i)$ is the parent set of node $X_i$. For observed evidence $e$, inference computes
+\begin{equation}
+P(Y=y\mid e)=\frac{P(Y=y,e)}{\sum_{y'}P(Y=y',e)}.
+\end{equation}
+The project evaluates two distinct capabilities:
+\begin{enumerate}
+\item \textit{Prediction:} estimate $P(Y=1\mid X)$ and compare predictive quality with discriminative baselines.
+\item \textit{Partial-evidence inference:} estimate $P(Y\mid e)$ when only a subset of features is observed, marginalizing unobserved variables.
+\end{enumerate}
+These objectives are related but not interchangeable. A model can have lower classification AUROC while still providing a useful general-purpose posterior query interface.
+
+\section{Dataset and Preprocessing}
+The source is the Kaggle Lung Cancer Survey dataset. The original file contains 309 rows and 16 columns. Removal of 33 exact duplicate rows leaves 276 unique records: 238 YES and 38 NO. The positive-class proportion is approximately 0.862; consequently, an always-YES classifier has accuracy 0.862. Accuracy alone is therefore not an adequate evaluation measure.
+
+AGE ranges from 21 to 87. For BN learning, AGE is discretized into three bins, with cut points fitted using training data in predictive cross-validation. The discriminative pipelines use median imputation and standardization for AGE; binary features are imputed using the training-fold mode where required. All learned preprocessing transformations are fitted within the training partition. The dataset is self-reported and is not a clinical cohort.
+
+\section{Methods}
+\subsection{PC Structure Learning}
+The PC algorithm begins with a complete undirected graph. Candidate edges are tested in increasing conditioning-set size using a conditional likelihood-ratio ($G$) test. An edge is removed when the test does not reject conditional independence at significance level $\alpha=0.05$; the separating set is retained. The maximum conditioning-set size is three. Unshielded colliders are oriented using separating sets, followed by Meek orientation rules. The CPDAG is distinguished from the fully directed DAG extension used for BN inference.
+
+The primary BN uses the plain PC skeleton. An ablation variant restores four edges from SMOKING to WHEEZING, YELLOW\_FINGERS, CHRONIC\_DISEASE and COUGHING. These are externally imposed modelling constraints, not edges discovered by PC. Their orientation in the DAG extension is not a causal claim.
+
+\subsection{Parameter Learning and Inference}
+CPTs are estimated using Dirichlet smoothing with $\alpha_0=1$. For a node with $r_i$ states, parent configuration $j$, and observed count $N_{ijk}$ for state $k$, the posterior-mean estimate is
+\begin{equation}
+\hat{\theta}_{ijk}=\frac{N_{ijk}+\alpha_0}{N_{ij}+r_i\alpha_0}.
+\end{equation}
+Exact variable elimination (VE) computes posterior queries by multiplying factors, summing out non-query and non-evidence variables, and normalizing the remaining factor. M4 validates VE numerically against brute-force enumeration for evidence sizes from zero through fifteen.
+
+\subsection{Predictive Baselines}
+The discriminative baselines are:
+\begin{itemize}
+\item Logistic regression with balanced class weights and maximum 3000 iterations.
+\item RBF-SVM with $C=1$, balanced class weights and probability estimates.
+\item MLP with hidden layers $(32,16)$, L2 penalty $0.01$, early stopping and maximum 1200 iterations.
+\end{itemize}
+The two BN variants are evaluated on the same folds. No claim is made that the MLP represents the performance of neural networks generally; it is the configured baseline used in this study.
+
+\subsection{Evaluation Protocol and Metrics}
+The primary predictive evaluation uses RepeatedStratifiedKFold with five folds and five repeats, random seed 516. Each repeat pools out-of-fold predictions across its five folds, yielding one repeat-level metric observation per model. We report mean, sample standard deviation and 95\% $t$-intervals with four degrees of freedom. Metrics include AUROC, AUPRC, F1 for the NO class at threshold 0.5, Brier score, log-loss, ECE using ten equal-width bins, and accuracy.
+
+Paired comparisons are computed across the five repeat-level observations. Wilcoxon signed-rank p-values are adjusted using Holm's procedure in the recomputed M4 statistical output. These tests remain exploratory: the repeated runs reuse the same 276 records and are not independent external samples. With five pairs, the smallest attainable two-sided Wilcoxon p-value is 0.0625.
+
+\section{Predictive Results}
+\subsection{Main KPI Comparison}
+Table~\ref{tab:kpi} reports the principal repeated-CV results. Logistic regression has the highest AUROC, AUPRC and F1 for NO. The SVM has the lowest Brier score and log-loss and the highest accuracy. The plain PC-BN ranks below both LR and SVM on discrimination and probability error, but has the lowest ECE. The protected-edge BN is effectively indistinguishable from the plain BN.
+
+\begin{table*}[t]
+\centering
+\caption{Repeated-CV predictive metrics (mean $\pm$ SD over five repeats of five-fold CV).}
+\label{tab:kpi}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+Model & AUROC $\uparrow$ & AUPRC $\uparrow$ & F1(NO) $\uparrow$ & Brier $\downarrow$ & Log-loss $\downarrow$ & ECE $\downarrow$ & Accuracy\\
+\midrule
+Logistic Regression & $0.938\pm0.009$ & $0.990\pm0.002$ & $0.623\pm0.027$ & $0.091\pm0.005$ & $0.301\pm0.013$ & $0.118\pm0.003$ & $0.864\pm0.008$\\
+SVM (RBF) & $0.912\pm0.020$ & $0.984\pm0.005$ & $0.508\pm0.072$ & $0.079\pm0.005$ & $0.253\pm0.016$ & $0.052\pm0.011$ & $0.882\pm0.011$\\
+PC-BN (plain) & $0.822\pm0.008$ & $0.967\pm0.003$ & $0.187\pm0.080$ & $0.099\pm0.004$ & $0.316\pm0.010$ & $0.043\pm0.005$ & $0.854\pm0.015$\\
+PC-BN (protected) & $0.820\pm0.009$ & $0.967\pm0.003$ & $0.170\pm0.080$ & $0.100\pm0.003$ & $0.317\pm0.010$ & $0.040\pm0.006$ & $0.854\pm0.008$\\
+MLP & $0.566\pm0.127$ & $0.883\pm0.051$ & $0.085\pm0.121$ & $0.191\pm0.021$ & $0.572\pm0.045$ & $0.268\pm0.034$ & $0.843\pm0.015$\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Results/M3/kpi_auroc.png}
+\caption{AUROC comparison across the predictive models. Logistic regression ranks highest; the PC-BN is intermediate.}
+\label{fig:auroc}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Results/M3/kpi_f1_no.png}
+\caption{F1 for the NO class at threshold 0.5. The BN has limited minority-class detection at this operating point.}
+\label{fig:f1}
+\end{figure}
+
+\subsection{Probability Quality and Calibration}
+The SVM has the best Brier score and log-loss, while the BN has the lowest ECE. These metrics measure different properties: ECE summarizes the average calibration gap across bins, whereas Brier score and log-loss penalize probability errors across individual observations. A low ECE alone does not establish superior probability quality. Figure~\ref{fig:reliability} shows the reliability curves; sparse bins, particularly at the extremes, should be interpreted cautiously because the NO class contains only 38 records.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Results/M3/reliability_diagram.png}
+\caption{Reliability diagram from pooled out-of-fold predictions. The dashed diagonal denotes perfect calibration.}
+\label{fig:reliability}
+\end{figure}
+
+\subsection{Error Analysis}
+At threshold 0.5, the plain BN recognizes 12.6\% of NO cases, compared with 81.6\% for logistic regression and 44.7\% for SVM. Its sensitivity to YES is 0.971, indicating a strong tendency to predict the majority class. The operating threshold was not optimized. Thus, the F1(NO) result describes the default threshold and should not be interpreted as the best achievable operating point for the BN.
+
+\subsection{Paired Statistical Analysis}
+Across the five repeats, LR exceeds the plain BN in AUROC by approximately 0.115 and in F1(NO) by approximately 0.437. SVM exceeds the BN in AUROC by approximately 0.090 and F1(NO) by approximately 0.321. The recomputed M4 paired-test table reports Holm-adjusted Wilcoxon p-values; for the LR-versus-BN and SVM-versus-BN comparisons these remain 0.25 for AUROC and 0.25 for F1(NO). The unadjusted Wilcoxon p-value is 0.0625, which is the minimum attainable with five paired repeats. Accordingly, the direction and magnitude of differences are more informative than a binary significance claim. The protected-edge ablation shows no measurable predictive improvement.
+
+\section{Representation and Structure-Learning Results}
+
+
+
+
+\subsection{Graph Size and Sensitivity}
+For plain PC at $\alpha=0.05$, the learned skeleton contains 18 edges among 16 nodes (density 0.150). The protected variant contains 22 edges. At $\alpha=0.01$, the plain and protected graphs contain 14 and 18 edges; at $\alpha=0.10$, they contain 25 and 26 edges. The target's neighbours remain unchanged between $\alpha=0.01$ and $0.05$ and gain ALCOHOL\_CONSUMING and FATIGUE at $\alpha=0.10$. This indicates local stability over the lower two thresholds but global sensitivity to the significance level.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Results/M3/pc_alpha_edge_sensitivity.png}
+\caption{PC skeleton edge count as a function of the significance level, for plain and protected-edge variants.}
+\label{fig:alpha}
+\end{figure}
+
+\subsection{Bootstrap Stability and Sample Size}
+The 100-resample bootstrap analysis identifies a stable core of dependencies, while some target-adjacent edges are less stable. The target-neighbour set should therefore not be treated as definitively recovered. The sample-size experiment shows that mean edge count rises from $7.3\pm1.4$ at 55 observations to $16.8\pm1.4$ at 221 observations; the full-data run contains 18 edges. No plateau is visible between 80\% and 100\% of the available data. Subsamples are drawn from the same dataset, so their variability does not represent independent external sampling.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Results/M3/pc_edge_stability.png}
+\caption{Top bootstrap edge-selection frequencies for the PC skeleton (100 resamples).}
+\label{fig:bootstrap}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Results/M3/sample_size_vs_edges.png}
+\caption{PC skeleton edge count versus training sample size.}
+\label{fig:samplesize}
+\end{figure}
+
+\subsection{Graphical-Lasso Comparison}
+The graphical lasso returns 82 edges among 16 variables (density 0.683), compared with 18--22 edges for PC. All PC edges are contained in the graphical-lasso graph. The two estimates are not directly interchangeable: graphical lasso estimates a Gaussian conditional-dependence structure, whereas most survey variables are binary. Neither graph is a causal ground truth, and no structural Hamming distance is reported because the real dataset has no known reference graph.
+
+\section{Robustness Under Feature Corruption}
+The M3 robustness experiment trains on clean folds and corrupts held-out features using MCAR missingness or feature noise. All models degrade as corruption increases, and the broad ranking LR $\gtrsim$ SVM $>$ BN $>$ MLP is retained. At 20\% MCAR, AUROC is 0.879 for LR, 0.869 for SVM and 0.724 for BN. At 10\% noise, LR and SVM are close (0.884 and 0.882), while BN obtains 0.730. This experiment uses one five-fold split and train-fold imputation; it does not test the BN's exact marginalization capability.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Results/M3/robustness_auroc.png}
+\caption{AUROC under held-out feature corruption. These are fold-averaged results from a single five-fold split.}
+\label{fig:robustness}
+\end{figure}
+
+\section{M4: Exact Inference Validation}
+M4 extends the inference validation across evidence-set sizes from zero to fifteen observed variables. Three random posterior queries are evaluated at each evidence size. VE and brute-force enumeration agree to numerical precision: the maximum absolute posterior difference over the reported cases is $1.11\times10^{-16}$. This supports the numerical correctness of the VE implementation for the tested BN and queries.
+
+The measured mean VE time ranges from approximately 0.16 to 0.56 ms in this M4 run, while brute-force enumeration takes approximately 2.17 to 3.31 ms. The timings are implementation- and machine-dependent and should not be generalized as a scalability result. The M4 query count is three per evidence size; it is a separate validation run from the M3 validation, which used 30 queries per size and checked brute force only for evidence sizes zero through four.
+
+
+
+
+
+\section{M4: Missing-Evidence Marginalization}
+A supplementary stratified 80/20 holdout contains 220 training and 56 test observations. The experiment compares exact BN marginalization, in which unobserved features are left unobserved in the posterior query, against train-statistic imputation using identical missingness masks.
+
+At 10\% missingness, marginalization obtains AUROC 0.831, AUPRC 0.964, Brier 0.090 and log-loss 0.304; imputation obtains AUROC 0.725, AUPRC 0.933, Brier 0.102 and log-loss 0.366. At 20\% missingness, marginalization obtains AUROC 0.824, AUPRC 0.965, Brier 0.101 and log-loss 0.326; imputation obtains AUROC 0.574, AUPRC 0.890, Brier 0.127 and log-loss 0.445. In this single split, marginalization is better on all four reported metrics at both missingness levels.
+
+These results are promising but preliminary. The test set contains only 56 observations, the comparison uses one split and one realization of the missingness masks, and the results are not directly comparable to the repeated-CV KPI table. They do not establish statistically significant or generalizable superiority. Repeated holdouts or repeated corruption masks are needed before making a stronger claim.
+
+\begin{table}[t]
+\centering
+\caption{M4 missing-evidence results on one stratified 80/20 holdout ($n_{\mathrm{test}}=56$).}
+\label{tab:missing}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Missing & Method & AUROC & AUPRC & Brier & Log-loss\\
+\midrule
+10\% & Marginalize & 0.831 & 0.964 & 0.090 & 0.304\\
+10\% & Impute & 0.725 & 0.933 & 0.102 & 0.366\\
+20\% & Marginalize & 0.824 & 0.965 & 0.101 & 0.326\\
+20\% & Impute & 0.574 & 0.890 & 0.127 & 0.445\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+
+
+\section{M4: Joint BN Likelihood}
+The supplementary held-out joint likelihood experiment uses a stratified 80/20 split with 220 training observations and 56 test observations. The reported joint negative log-likelihood is 10.3938 nats per test sample (total 582.0523 nats). This is a joint-distribution score over the BN variables and is not the same quantity as target-only classification log-loss in Table~\ref{tab:kpi}. It should not be compared numerically with the LR or SVM target log-loss. The result is a single-holdout estimate and is reported as a supplementary characterization of the BN joint model.
+
+\section{Position Relative to Neural Graphical Models}
+The selected research anchor is Neural Graphical Models (NGMs) by Shrivastava and Chajewska. The cited work combines graph-structured neural parameterizations with graph-adherence regularization and inference procedures. Its lung-cancer appendix reports 5-fold values of $0.95\pm0.02$ for logistic regression and $0.96\pm0.01$ for NGM, but does not state the metric in the relevant table. Its dataset handling also differs from this project. Therefore, these external values are not directly comparable to the present AUROC results.
+
+No NGM was implemented in this project. The present work evaluates a discrete PC-learned BN and conventional discriminative baselines; it does not claim to reproduce or outperform the NGM method. A graph-constrained NGM is a possible future extension, not a completed experiment.
+
+\section{Discussion: Is the PGM Better?}
+The results support a task-dependent conclusion:
+\begin{itemize}
+\item \textit{Predictive discrimination:} no. LR and SVM achieve higher AUROC than the BN. The BN is also weak at recognizing the NO class at the default 0.5 threshold.
+\item \textit{Probability calibration:} mixed. The BN has the lowest ECE, but does not have the best Brier score or log-loss.
+\item \textit{Representation:} the BN provides an explicit dependency graph and a factorized joint distribution. The learned graph has a stable core but remains sensitive to sample size and PC threshold.
+\item \textit{Exact reasoning:} yes, for the tested network and queries. VE matches brute-force enumeration to floating-point precision and supports posterior queries with partial evidence.
+\item \textit{Missing evidence:} preliminary evidence favours exact marginalization over imputation on one holdout. This finding requires repeated validation.
+\end{itemize}
+Consequently, it is not scientifically justified to state that PGM is universally better than conventional machine learning. The defensible claim is narrower: the PGM sacrifices predictive discrimination in this experiment but provides explicit dependency representation and exact probabilistic reasoning under arbitrary observed evidence subsets.
+
+\section{Limitations}
+The main limitations are:
+\begin{enumerate}
+\item The dataset contains only 276 unique self-reported observations, including 38 NO cases, and is not a clinical cohort.
+\item Repeated-CV statistical tests reuse the same observations. Their p-values are exploratory and do not constitute independent external replication.
+\item The M4 missing-evidence and joint-NLL experiments use one 80/20 holdout with 56 test cases.
+\item The M4 inference equivalence experiment uses three queries per evidence size; broader randomized validation would provide stronger coverage.
+\item PC structure learning depends on the CI test, significance level, conditioning-set cap and finite-sample behavior of sparse contingency tables.
+\item The protected SMOKING edges are imposed modelling constraints, not PC discoveries, and do not improve predictive performance measurably.
+\item There is no ground-truth graph for the real survey data; causal effects and structural recovery accuracy cannot be established.
+\item The MLP is a compact configured baseline, not an exhaustive neural-model benchmark. No NGM was implemented.
+\item No result in this report supports medical diagnosis, screening or treatment decisions.
+\end{enumerate}
+
+\section{Conclusion and Future Work}
+The final evaluation does not show that the PC-learned BN is a better classifier than logistic regression or RBF-SVM on the Lung Cancer Survey dataset. LR has the strongest discrimination, and SVM has the best Brier score and log-loss. The BN's ECE is lowest, but its minority-class F1 is weak at the default threshold. The protected-edge ablation does not change this outcome.
+
+The PGM's contribution is instead its explicit factorization and ability to answer exact posterior queries when only part of the evidence is observed. M4 verifies VE against brute-force enumeration for evidence sizes zero through fifteen. A single-holdout missing-evidence experiment favours marginalization over imputation, although this finding requires repeated validation.
+
+Future work should repeat missing-evidence experiments over multiple stratified splits and masks, tune decision thresholds and baselines within training data, evaluate alternative CI tests for sparse tables, assess graph stability on larger datasets, and test a graph-constrained NGM. Synthetic data with a known generating graph would enable structural recovery metrics such as structural Hamming distance. External clinical validation would be required before any medical interpretation.
+
+\section*{Reproducibility}
+The experimental configuration uses random seed 516, five-fold stratified cross-validation repeated five times for the main predictive evaluation, PC significance level $\alpha=0.05$, maximum conditioning-set size three, and Dirichlet smoothing $\alpha_0=1$. The M4 supplementary holdout is stratified 80/20 (220 train, 56 test). The uploaded M4 package contains the implementation, dataset reference, result CSVs and M3/M4 figures used to prepare this report. The final code and result-generation commands should be archived with the submission. Reported M4 holdout results must be regenerated if the code, environment or randomization protocol changes.
+
+
+\begin{thebibliography}{00}
+\bibitem{ngm}
+H. Shrivastava and U. Chajewska, ``Neural Graphical Models,'' arXiv:2210.00453, 2022.
+
+\bibitem{kaggle}
+N. Alaswad, ``Lung Cancer Dataset,'' Kaggle. [Online]. Available: \url{https://www.kaggle.com/datasets/nancyalaswad90/lung-cancer}
+
+\bibitem{pc}
+P. Spirtes, C. Glymour, and R. Scheines, \emph{Causation, Prediction, and Search}, 2nd ed. Cambridge, MA, USA: MIT Press, 2000.
+
+\bibitem{colombo}
+D. Colombo and M. H. Maathuis, ``Order-independent constraint-based causal structure learning,'' \emph{Journal of Machine Learning Research}, vol. 15, pp. 3741--3782, 2014.
+
+\bibitem{glasso}
+J. Friedman, T. Hastie, and R. Tibshirani, ``Sparse inverse covariance estimation with the graphical lasso,'' \emph{Biostatistics}, vol. 9, no. 3, pp. 432--441, 2008.
+
+\bibitem{calibration}
+C. Guo, G. Pleiss, Y. Sun, and K. Q. Weinberger, ``On calibration of modern neural networks,'' in \emph{Proc. ICML}, 2017, pp. 1321--1330.
+
+\bibitem{nadeau}
+C. Nadeau and Y. Bengio, ``Inference for the generalization error,'' \emph{Machine Learning}, vol. 52, pp. 239--281, 2003.
+\end{thebibliography}
+
+\end{document}
