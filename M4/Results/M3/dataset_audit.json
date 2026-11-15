@@ -1,0 +1,31 @@
+{
+  "raw_rows": 309,
+  "duplicate_rows": 33,
+  "columns": [
+    "GENDER",
+    "AGE",
+    "SMOKING",
+    "YELLOW_FINGERS",
+    "ANXIETY",
+    "PEER_PRESSURE",
+    "CHRONIC_DISEASE",
+    "FATIGUE",
+    "ALLERGY",
+    "WHEEZING",
+    "ALCOHOL_CONSUMING",
+    "COUGHING",
+    "SHORTNESS_OF_BREATH",
+    "SWALLOWING_DIFFICULTY",
+    "CHEST_PAIN",
+    "LUNG_CANCER"
+  ],
+  "class_counts": {
+    "1": 270,
+    "0": 39
+  },
+  "age_min": 21,
+  "age_max": 87,
+  "rows_after_dedup": 276,
+  "positive_rate": 0.8623188405797102,
+  "majority_class_accuracy": 0.8623188405797102
+}

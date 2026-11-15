@@ -1,0 +1,2 @@
+split,train_n,test_n,joint_nll_per_sample,joint_log_likelihood_per_sample,total_joint_nll
+stratified 80/20 holdout,220,56,10.393791066667362,-10.393791066667362,582.0522997333723

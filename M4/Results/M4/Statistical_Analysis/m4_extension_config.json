@@ -1,0 +1,47 @@
+{
+  "python": "3.14.2",
+  "numpy": "2.4.2",
+  "pandas": "3.0.3",
+  "seed": 516,
+  "holdout": "stratified 80/20 single split",
+  "alpha_pc": 0.05,
+  "max_conditioning_set_size": 3,
+  "inference_queries_per_evidence_size": 3,
+  "dataset_audit": {
+    "raw_rows": 309,
+    "duplicate_rows": 33,
+    "columns": [
+      "GENDER",
+      "AGE",
+      "SMOKING",
+      "YELLOW_FINGERS",
+      "ANXIETY",
+      "PEER_PRESSURE",
+      "CHRONIC_DISEASE",
+      "FATIGUE",
+      "ALLERGY",
+      "WHEEZING",
+      "ALCOHOL_CONSUMING",
+      "COUGHING",
+      "SHORTNESS_OF_BREATH",
+      "SWALLOWING_DIFFICULTY",
+      "CHEST_PAIN",
+      "LUNG_CANCER"
+    ],
+    "class_counts": {
+      "1": 270,
+      "0": 39
+    },
+    "age_min": 21,
+    "age_max": 87,
+    "rows_after_dedup": 276,
+    "positive_rate": 0.8623188405797102,
+    "majority_class_accuracy": 0.8623188405797102
+  },
+  "notes": [
+    "Inference correctness validation uses a full-data fitted BN solely for algorithmic equivalence checking; it is not predictive test evaluation.",
+    "Joint NLL and missing-evidence evaluation use one stratified 80/20 holdout and are supplementary, not repeated-CV estimates.",
+    "Missing-evidence evaluation compares exact BN marginalization with train-statistic imputation on identical test masks.",
+    "Paired tests are exploratory because repeated CV runs reuse observations."
+  ]
+}
