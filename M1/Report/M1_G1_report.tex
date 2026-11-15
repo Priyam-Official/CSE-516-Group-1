@@ -1,0 +1,152 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage[hidelinks]{hyperref}
+
+\begin{document}
+	
+	\title{Interpretable Risk-Factor Dependency Modeling for Lung Cancer Prediction using Probabilistic Graphical Models\\[4pt]
+		\large Milestone 1: Proposal and Scoping Document\\[4pt] CSE 516 --- Probabilistic Graphical Models}
+	
+	\author{
+		\IEEEauthorblockN{Priyam Modi\IEEEauthorrefmark{1} \quad Rushin Modi\IEEEauthorrefmark{1} \quad Jash Odedara\IEEEauthorrefmark{1}}
+		\IEEEauthorblockA{\IEEEauthorrefmark{1}Group: 1 , CSE 516, Applied AI \\
+			Email: $<$priyam.m@ahduni.edu.in$>$ \quad $<$rushin.m@ahdiuni.edu.in$>$ \quad $<$jash.o@ahduni.edu.in$>$}
+	}
+	
+	\maketitle
+	
+	\begin{abstract}
+		Lung cancer risk is shaped by a network of interacting demographic, behavioral, and symptomatic factors rather than by any single variable acting in isolation. Standard classifiers can predict a binary outcome with reasonable accuracy but treat the task as a black box, exposing neither the dependency structure among risk factors nor calibrated, partial-evidence queries. This proposal scopes an Applied AI project that represents the Kaggle Lung Cancer survey dataset as a Probabilistic Graphical Model (PGM) --- both a Conditional Independence (CI) graph and a Bayesian Network (BN) --- learns its structure and parameters from data, and performs exact inference under partial evidence. We adopt \emph{Neural Graphical Models} (NGMs) \cite{ngm2022}, which evaluates on the same dataset, as our State-of-the-Art (SOTA) reference. We define baselines (Logistic Regression, Naive Bayes) and KPIs spanning Representation, Inference, and Learning, and lay out a four-phase experimental plan for the remainder of the semester.
+	\end{abstract}
+	
+	\begin{IEEEkeywords}
+		probabilistic graphical models, Bayesian networks, conditional independence graphs, neural graphical models, lung cancer prediction, interpretability
+	\end{IEEEkeywords}
+	
+	\section{Problem Statement}
+	Lung cancer risk is influenced by an interacting set of demographic, behavioral, and symptomatic factors --- smoking history, chronic disease, anxiety, peer pressure, chest pain, coughing, and others --- rather than by any one variable in isolation. Standard classifiers (logistic regression, gradient-boosted trees) can predict the binary outcome (lung cancer: yes/no) with reasonable accuracy, but they treat prediction as a black box and do not expose how risk factors and symptoms depend on one another. This project asks: \emph{can a probabilistic graphical model that explicitly represents the dependency structure among risk factors and symptoms match the predictive quality of standard classifiers while additionally providing an interpretable map of clinical dependencies and calibrated uncertainty?}
+	
+	\subsection{Motivation and Significance}
+	\begin{itemize}
+		\item Clinical decision support benefits from models that clinicians can inspect and reason about, not just point predictions.
+		\item Understanding which symptoms are conditionally dependent given smoking status (or given age) can highlight redundant vs.\ informative screening questions.
+		\item PGMs naturally support partial-evidence queries (e.g., ``what is $P(\text{lung cancer})$ given only 3 of 15 observed symptoms?''), which fixed-input classifiers cannot answer without retraining or imputation.
+	\end{itemize}
+	
+	\subsection{Assumptions and Scope}
+	We commit to \textbf{one} domain (clinical risk prediction) and \textbf{one} principal dataset (Lung Cancer Survey Dataset, Kaggle \cite{kaggle_lung}), as required for the Applied AI track. All 15 symptom/behavioral features are treated as categorical/binary; \texttt{AGE} is treated as continuous (or binned-ordinal), following the mixed-type handling strategy in \cite{ngm2022} (Sec.~3.3, Appendix~D.1). We assume the dataset's self-reported symptom labels are a reasonable, if noisy, proxy for clinical presentation; label-noise analysis is deferred as a stated limitation. The CDC Birth Cohort Linked Birth--Infant Death dataset \cite{cdc_data}, also used in \cite{ngm2022}, is noted as a possible stretch extension in later milestones but is \emph{not} the principal dataset here, given its scale ($\sim$4M records, $\sim$500 engineered features) relative to a one-semester scope.
+	
+	\section{Mapping onto Representation, Inference, and Learning}
+	
+	\subsection{Representation}
+	Random variables are the 15 binary/categorical patient attributes (\texttt{GENDER}, \texttt{SMOKING}, \texttt{YELLOW\_FINGERS}, \texttt{ANXIETY}, \texttt{PEER\_PRESSURE}, \texttt{CHRONIC\_DISEASE}, \texttt{FATIGUE}, \texttt{ALLERGY}, \texttt{WHEEZING}, \texttt{ALCOHOL\_CONSUMING}, \texttt{COUGHING}, \texttt{SHORTNESS\_OF\_BREATH}, \texttt{SWALLOWING\_DIFFICULTY}, \texttt{CHEST\_PAIN}) plus \texttt{AGE} and the target \texttt{LUNG\_CANCER}. Each variable is a node; we recover edges two complementary ways, mirroring the comparison strategy of the SOTA paper:
+	\begin{itemize}
+		\item A CI graph via sparse precision-matrix estimation (graphical lasso), analogous to the uGLAD graph used in \cite{ngm2022}.
+		\item A Bayesian Network (DAG) via score-based structure learning (hill-climbing with a BIC score), analogous to the bnlearn Tabu-search graph in \cite{ngm2022}.
+	\end{itemize}
+	Undirected CI graphs expose symmetric dependence (which symptoms co-occur regardless of ordering), while the DAG exposes a candidate generative ordering (e.g., \texttt{SMOKING} $\rightarrow$ \texttt{CHRONIC\_DISEASE} $\rightarrow$ \texttt{LUNG\_CANCER}). Comparing both, as in \cite{ngm2022}, tests how sensitive downstream inference is to graph choice --- itself one of our KPIs (Sec.~\ref{sec:kpi}).
+	
+	\subsection{Inference}
+	Target queries are (i) $P(\texttt{LUNG\_CANCER} = \text{Yes} \mid \text{observed symptom subset})$, the primary clinical query under partial evidence, and (ii) $P(\texttt{SMOKING} \mid \text{remaining features})$, a secondary diagnostic query used in \cite{ngm2022} (Table~4) to test whether the model robustly reconstructs any variable, not only the labeled outcome. We use exact inference (variable elimination / junction tree) on the learned Bayesian Network for point and marginal queries. As a stretch goal, we plan to implement the gradient-based MAP inference procedure of \cite{ngm2022} (Algorithm~2) on a small NGM-style network sharing the same graph, to directly compare inference behavior between a classical BN and a neural graphical model.
+	
+	\subsection{Learning}
+	The model is obtained through both structure and parameter learning: hill-climbing with BIC score (Bayesian Network) and graphical-lasso sparse precision estimation (CI graph) for structure; Maximum Likelihood / Bayesian (Dirichlet-prior) estimation of conditional probability tables given the learned DAG for parameters. As an extension aligned with the SOTA paper, we plan to fit a small MLP-based Neural Graphical Model (\cite{ngm2022}, Eq.~1--2) on the recovered graph, jointly optimizing regression fit and a soft structure-matching penalty, to test whether a richer functional form improves calibration without sacrificing the interpretability of a fixed graph.
+	
+	\section{State-of-the-Art Position}
+	\label{sec:sota}
+	Table~\ref{tab:sota} summarizes our SOTA reference, \emph{Neural Graphical Models} \cite{ngm2022} (Microsoft Research, arXiv preprint 2210.00453, v4).
+	
+	\begin{table}[htbp]
+		\caption{SOTA Position: Neural Graphical Models \cite{ngm2022}}
+		\label{tab:sota}
+		\centering
+		\begin{tabular}{p{0.24\linewidth} p{0.68\linewidth}}
+			\toprule
+			\textbf{Field} & \textbf{Details} \\
+			\midrule
+			Problem & Represent arbitrary (directed / undirected / mixed-edge, mixed-datatype) feature-dependency graphs with one neural-network-based PGM, supporting efficient learning, inference and sampling. \\
+			Representation & Each feature is a function of its graph neighbors (or Markov blanket for DAGs), re-parameterized as an MLP whose layer-weight-magnitude product must respect the zero pattern of $G$. \\
+			Learning & Joint multi-task regression minimizing reconstruction error of $X$ subject to a soft Hadamard-product penalty enforcing near-zero weight paths where $G$ has none; proximal initialization warm-starts the weights. \\
+			Inference & Message passing, and a gradient-based MAP update that freezes trained weights and updates only unobserved input values until reconstruction matches observed inputs. \\
+			Evaluation & Synthetic GGMs (graph-recovery AUROC/AUPR); a $\sim$300-patient lung-cancer dataset (5-fold CV vs.\ logistic regression); a 4M-record CDC infant-mortality dataset (vs.\ logistic regression, Bayesian Networks, EBMs). \\
+			Findings & NGMs match or exceed Bayesian Networks and are competitive with EBMs using a single trained model for all variables, and are notably strong on rare-class prediction. \\
+			Limitations & Optimization is sensitive to $\lambda$ initialization; scaling to very high-dimensional inputs is an open challenge; text/image inputs are proposed but not empirically evaluated. \\
+			Relation to our project & \cite{ngm2022} evaluates on the same Lung Cancer dataset we use, reporting both a Bayesian Network baseline and an NGM model (Table~4). This gives a direct, paper-verified reference point: we reproduce the classical-PGM side ourselves and use their reported NGM methodology/numbers as the SOTA target, with an optional NGM-style extension later. \\
+			\bottomrule
+		\end{tabular}
+	\end{table}
+	
+	\section{Baseline and Initial KPIs}
+	\label{sec:kpi}
+	Success is defined jointly across the three PGM verticals, not by predictive accuracy alone (Table~\ref{tab:kpi}). Our baseline is Logistic Regression, matching the exact protocol used in \cite{ngm2022} (Table~4) for this dataset, plus Gaussian Naive Bayes as a second, PGM-flavored baseline assuming full feature independence given the class.
+	
+	\begin{table}[htbp]
+		\caption{Baselines and KPIs by PGM Vertical}
+		\label{tab:kpi}
+		\centering
+		\begin{tabular}{p{0.16\linewidth} p{0.38\linewidth} p{0.34\linewidth}}
+			\toprule
+			\textbf{Vertical} & \textbf{KPI} & \textbf{Measured against} \\
+			\midrule
+			Representation & Graph density recovered by CI-graph vs.\ BN; agreement with clinically expected edges (e.g., \texttt{SMOKING}--\texttt{COUGHING}) & Cross-method agreement; domain sanity check \\
+			Representation & Edge stability under bootstrap resampling & Variance across 20 resampled fits \\
+			Inference & Log-likelihood of held-out patients & Naive Bayes \\
+			Inference & Calibration: Brier score, ECE & Logistic Regression \\
+			Inference & Query latency under partial evidence & Baseline classifier inference time \\
+			Learning & 5-fold CV AUROC / AUPR / accuracy & Logistic Regression \cite{ngm2022}, Naive Bayes \\
+			Learning & Sample efficiency (20\%--100\% of data) & Logistic Regression learning curve \\
+			\bottomrule
+		\end{tabular}
+	\end{table}
+	
+	\section{Experimental Plan, Responsibilities, and Timeline}
+	
+	\subsection{Experimental Plan}
+	\begin{itemize}
+		\item \textbf{Phase 1 (M1):} data acquisition and cleaning, exploratory analysis, CI-graph and BN structure recovery, baseline implementation.
+		\item \textbf{Phase 2 (M2):} parameter learning on recovered graphs, exact inference implementation, KPI evaluation (Sec.~\ref{sec:kpi}), initial comparison against \cite{ngm2022}.
+		\item \textbf{Phase 3 (M3):} sensitivity analysis (CI graph vs.\ BN graph, as in \cite{ngm2022} Fig.~9), calibration analysis, and, time permitting, a small NGM-style neural-view extension trained on the same graph.
+		\item \textbf{Phase 4 (Final):} consolidation, ablations, writeup, and reflection against the SOTA position.
+	\end{itemize}
+	
+	\subsection{Team Responsibilities}
+	Priyam Modi owns the core PGM pipeline end-to-end --- representation (both graph-recovery methods), structure and parameter learning, inference, SOTA analysis, and integration of the report and video --- while Rushin Modi and Jash Odedra own data engineering and the baseline/KPI evaluation that the PGM pipeline is compared against (Table~\ref{tab:team}).
+\begin{table}[htbp]
+	\caption{Team Responsibilities (Milestone 1)}
+	\label{tab:team}
+	\centering
+	\begin{tabular}{>{\raggedright\arraybackslash}p{0.24\linewidth}
+			>{\raggedright\arraybackslash}p{0.64\linewidth}}
+		\toprule
+		\textbf{Member} & \textbf{Primary Responsibility (M1)} \\
+		\midrule
+		Priyam Modi & PGM mapping (Sec.~II): Representation, Inference, and Learning design. SOTA analysis of \cite{ngm2022} (Sec.~III); KPI design (Sec.~IV). \\
+		
+		\midrule
+		Rushin Modi & Problem framing (Sec.~I); dataset and preprocessing (Data/); baseline and experimental plan (Sec.~IV, Sec.~V). \\
+		\midrule
+		Jash Odedara & KPI definitions (Sec.~IV); Naive Bayes baseline; repository structure (Code/, Results/). \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+	
+	
+	\section{Conclusion}
+	This proposal commits our Applied AI project to modeling lung-cancer risk-factor dependencies with a Probabilistic Graphical Model, combining a learned Conditional Independence graph and a Bayesian Network for representation, exact inference under partial evidence, and structure-plus-parameter learning. Using Neural Graphical Models \cite{ngm2022} as our SOTA reference gives us a directly comparable evaluation on the same dataset, and our KPIs (Sec.~\ref{sec:kpi}) ensure success is judged across representation, inference, and learning rather than accuracy alone.
+	
+	\begin{thebibliography}{00}
+		\bibitem{ngm2022} H. Shrivastava and U. Chajewska, ``Neural Graphical Models,'' Oct. 02, 2022. Accessed: Sep. 07, 2026. [Online]. Available: \url{https://arxiv.org/abs/2210.00453v4}
+		\bibitem{kaggle_lung} ``Lung Cancer,'' \emph{www.kaggle.com}. \url{https://www.kaggle.com/datasets/nancyalaswad90/lung-cancer} (accessed Sep. 07, 2026).
+		\bibitem{cdc_data} ``Data Access -- Vital Statistics Online,'' 2019. [Online]. Available: \url{https://www.cdc.gov/nchs/data_access/vitalstatsonline.htm} (accessed Sep. 07, 2026).
+		\bibitem{ngm_code} H. Shrivastava, ``neural-graphical-models,'' GitHub. \url{https://github.com/harshs27/neural-graphical-models}
+	\end{thebibliography}
+	
+\end{document}
