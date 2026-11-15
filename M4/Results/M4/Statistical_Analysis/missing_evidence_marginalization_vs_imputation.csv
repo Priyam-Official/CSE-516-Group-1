@@ -1,0 +1,5 @@
+split,missing_rate,method,AUROC,AUPRC,Brier_score,Log_loss,n_test
+stratified 80/20 holdout,0.1,BN marginalization (observed evidence only),0.8307291666666667,0.9642575027391469,0.08962175903125624,0.3041571264179969,56
+stratified 80/20 holdout,0.1,BN after train-statistic imputation,0.7252604166666666,0.9326524069188845,0.10238200442007603,0.36648791727489033,56
+stratified 80/20 holdout,0.2,BN marginalization (observed evidence only),0.82421875,0.9651928733782874,0.1010645436224077,0.3264116913146445,56
+stratified 80/20 holdout,0.2,BN after train-statistic imputation,0.57421875,0.8900954099540923,0.12711305119185576,0.44451064970198917,56

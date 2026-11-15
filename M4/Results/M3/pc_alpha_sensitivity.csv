@@ -1,0 +1,7 @@
+alpha,method,nodes,edges,density,ci_tests,separating_sets,max_conditioning_level
+0.01,Plain PC,16,14,0.11666666666666667,437,106,2
+0.01,Protected-edge PC,16,18,0.15,514,102,3
+0.05,Plain PC,16,18,0.15,761,102,3
+0.05,Protected-edge PC,16,22,0.18333333333333332,852,98,3
+0.1,Plain PC,16,25,0.20833333333333334,1261,95,3
+0.1,Protected-edge PC,16,26,0.21666666666666667,1397,94,3

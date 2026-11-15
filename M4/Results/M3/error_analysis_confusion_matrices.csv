@@ -1,0 +1,6 @@
+model,threshold,TN,FP,FN,TP,specificity_NO_recall,sensitivity_YES_recall,false_negative_rate,false_positive_rate,note
+Logistic Regression,0.5,155,35,152,1038,0.8157894736842105,0.8722689075630252,0.12773109243697478,0.18421052631578946,Counts pool repeated out-of-fold predictions; the same row appears once per repeat.
+Neural Network (MLP),0.5,11,179,38,1152,0.05789473684210526,0.9680672268907563,0.031932773109243695,0.9421052631578948,Counts pool repeated out-of-fold predictions; the same row appears once per repeat.
+PC-learned Bayesian Network (plain PC),0.5,24,166,35,1155,0.12631578947368421,0.9705882352941176,0.029411764705882353,0.8736842105263158,Counts pool repeated out-of-fold predictions; the same row appears once per repeat.
+PC-learned Bayesian Network (protected edges),0.5,22,168,34,1156,0.11578947368421053,0.9714285714285714,0.02857142857142857,0.8842105263157894,Counts pool repeated out-of-fold predictions; the same row appears once per repeat.
+SVM (RBF),0.5,85,105,58,1132,0.4473684210526316,0.9512605042016806,0.04873949579831933,0.5526315789473685,Counts pool repeated out-of-fold predictions; the same row appears once per repeat.
